@@ -22,6 +22,11 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
 
+from imblearn.over_sampling import SMOTE
+
+sm = SMOTE(random_state=42)
+X_train, y_train = sm.fit_resample(X_train, y_train)
+
 # 7. Train model
 from sklearn.ensemble import RandomForestClassifier
 model = RandomForestClassifier()
