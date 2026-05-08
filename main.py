@@ -48,6 +48,10 @@ models = {
     "Decision Tree": DecisionTreeClassifier()
 }
 
+# Store results for graph
+model_names = []
+accuracies = []
+
 # 9. Train and evaluate models
 for name, model in models.items():
 
@@ -61,6 +65,10 @@ for name, model in models.items():
     acc = accuracy_score(y_test, pred)
     print("Accuracy:", acc)
 
+    # Save results
+    model_names.append(name)
+    accuracies.append(acc)
+
     # Confusion Matrix
     cm = confusion_matrix(y_test, pred)
 
@@ -72,3 +80,16 @@ for name, model in models.items():
     plt.title(f"Confusion Matrix - {name}")
 
     plt.show()
+
+# 10. Accuracy Comparison Graph
+plt.figure(figsize=(8,5))
+
+plt.bar(model_names, accuracies)
+
+plt.xlabel("Models")
+plt.ylabel("Accuracy")
+plt.title("Model Accuracy Comparison")
+
+plt.ylim(0.8, 1.0)
+
+plt.show()
