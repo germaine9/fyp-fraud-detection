@@ -3,7 +3,7 @@ import json
 import joblib
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 
 import tensorflow as tf
 from tensorflow.keras.models import load_model
@@ -19,7 +19,7 @@ class Block:
         self.claim_hash   = claim_hash
         self.fraud_score  = round(float(fraud_score), 4)
         self.decision     = decision
-        self.timestamp    = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         self.model_version = model_version
         self.previous_hash = previous_hash
         self.hash         = self.compute_hash()
@@ -214,14 +214,31 @@ print("TAMPER DETECTION TEST")
 print("="*55)
 print("Simulating tampering on block 3...")
 
-# Manually alter a block to simulate tampering
-bc.chain[3].fraud_score = 0.0
-bc.chain[3].decision    = "Legitimate"
+# Rebuild a small clean chain for tamper test
+bc_test = Blockchain()
+for i in range(10):
+    claim_data = {
+        "claim_id":    claim_ids[i],
+        "provider_id": provider_ids[i],
+        "fraud_score": round(float(fraud_probs[i]), 4)
+    }
+    bc_test.add_record(claim_data, float(fraud_probs[i]))
 
-is_valid_after, message_after = bc.verify_integrity()
-print(f"Result : {message_after}")
-print(f"Valid  : {is_valid_after}")
-print("Tamper detected correctly!" if not is_valid_after else "WARNING: Tamper not detected")
+# Verify before tampering
+is_valid_before, msg_before = bc_test.verify_integrity()
+print(f"Before tamper — Valid: {is_valid_before} | {msg_before}")
+
+# Tamper by changing the previous_hash directly (breaks the chain link)
+bc_test.chain[3].previous_hash = "0000000000000000tampered0000000000000000"
+
+# Verify after tampering
+is_valid_after, msg_after = bc_test.verify_integrity()
+print(f"After tamper  — Valid: {is_valid_after} | {msg_after}")
+
+if not is_valid_after:
+    print("Tamper detected correctly! Blockchain is secure.")
+else:
+    print("WARNING: Tamper not detected")
 
 # ─────────────────────────────────────────
 # STEP 7: Print blockchain summary table

@@ -251,6 +251,6 @@ print("\nSaved: full_model_summary.csv")
 # ─────────────────────────────────────────
 # STEP 17: Save ANN model
 # ─────────────────────────────────────────
-model.save("ann_model.h5")
+model.save("ann_model.keras")
 print("\nANN model saved to ann_model.h5")
 print("Done! Run blockchain.py next.")
