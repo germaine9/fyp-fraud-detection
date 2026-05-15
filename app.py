@@ -7,6 +7,7 @@ import joblib
 import hashlib
 import json
 from datetime import datetime, timezone
+from document_scanner import render_document_scanner
 
 import tensorflow as tf
 from tensorflow.keras.models import load_model
@@ -205,6 +206,7 @@ st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", [
     "🏠 Home",
     "📋 Submit Single Claim",
+    "📄 Document Scanner",   
     "📂 Upload CSV",
     "🔗 Blockchain Verification"
 ])
@@ -361,6 +363,10 @@ Previous Hash  : {block.previous_hash}
             "Block Hash":   block.hash[:20] + "..."
         })
         st.success(f"Claim logged to blockchain. Block #{block.index}")
+
+
+elif page == "📄 Document Scanner":
+    render_document_scanner(model, scaler, bc)
 
 
 # ═══════════════════════════════════════════
