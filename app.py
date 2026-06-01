@@ -25,7 +25,7 @@ st.set_page_config(
 # BG       : #FFFFFF  pure white main area
 # SURFACE  : #F8FAFC  very light grey cards
 # BORDER   : #E2E8F0  soft grey borders
-# TEXT     : #1E293B  near-black body text
+# TEXT     : #FFFFFF  near-black body text
 # MUTED    : #64748B  secondary text
 # ACCENT   : #0F766E  teal — buttons, links
 # DANGER   : #DC2626  red — fraud flag
@@ -47,71 +47,101 @@ html, body,
 [data-testid="stMain"],
 [data-testid="stMainBlockContainer"],
 .main, .main .block-container {
-    background-color: #FFFFFF !important;
+    background-color: #F8FAFC !important;
     font-family: 'Inter', sans-serif !important;
-    color: #1E293B !important;
+    color: #0F172A !important;
 }
 
 /* ══════════════════════════════
    ALL BODY TEXT
    ══════════════════════════════ */
-p, span, li, h1, h2, h3, h4, h5 {
-    color: #1E293B !important;
-    font-family: 'Inter', sans-serif !important;
-}
-label {
-    color: #1E293B !important;
+p, span, li, h1, h2, h3, h4, h5, div, label, a {
+    color: #0F172A !important;
     font-family: 'Inter', sans-serif !important;
 }
 
 /* ══════════════════════════════
-   SIDEBAR — dark slate
+   SIDEBAR — polished dark
    ══════════════════════════════ */
 [data-testid="stSidebar"],
 [data-testid="stSidebar"] > div {
-    background-color: #1E293B !important;
+    background-color: #0F172A !important;
+    color: #F8FAFC !important;
+    position: sticky !important;
+    top: 0 !important;
+    height: calc(100vh - 0px) !important;
+    overflow-y: auto !important;
+    border-right: 1px solid rgba(255,255,255,0.06) !important;
 }
-[data-testid="stSidebar"] * {
+
+/* Force sidebar text contrast */
+[data-testid="stSidebar"] *,
+[data-testid="stSidebar"] *::placeholder,
+[data-testid="stSidebar"] *::selection {
+    color: #F8FAFC !important;
     font-family: 'Inter', sans-serif !important;
-    color: #CBD5E1 !important;
 }
-[data-testid="stSidebar"] strong,
-[data-testid="stSidebar"] b {
-    color: #94A3B8 !important;
-    font-size: 10px !important;
-    letter-spacing: 0.8px !important;
-    text-transform: uppercase !important;
+
+/* Sidebar headings and labels */
+[data-testid="stSidebar"] .stMarkdown h1,
+[data-testid="stSidebar"] .stMarkdown h2,
+[data-testid="stSidebar"] .stMarkdown h3,
+[data-testid="stSidebar"] .stMarkdown h4,
+[data-testid="stSidebar"] .stMarkdown h5,
+[data-testid="stSidebar"] .stMarkdown h6,
+[data-testid="stSidebar"] .stMarkdown p,
+[data-testid="stSidebar"] .stMarkdown span,
+[data-testid="stSidebar"] .stMarkdown div {
+    color: #F8FAFC !important;
 }
-/* Radio nav items */
-[data-testid="stSidebar"] .stRadio label p {
-    color: #CBD5E1 !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
+
+[data-testid="stSidebar"] .stRadio label,
+[data-testid="stSidebar"] .stRadio label p,
+[data-testid="stSidebar"] .stRadio label span,
+[data-testid="stSidebar"] .stRadio label div,
+[data-testid="stSidebar"] .stRadio label strong {
+    color: #F8FAFC !important;
 }
-/* Sidebar metrics */
-[data-testid="stSidebar"] [data-testid="metric-container"] {
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px solid #334155 !important;
-    border-radius: 8px !important;
-    padding: 10px 12px !important;
-    box-shadow: none !important;
-}
-[data-testid="stSidebar"] [data-testid="stMetricValue"] {
-    color: #F1F5F9 !important;
-    font-size: 18px !important;
-    font-weight: 700 !important;
-}
-[data-testid="stSidebar"] [data-testid="stMetricLabel"] {
-    color: #94A3B8 !important;
-    font-size: 11px !important;
-    font-weight: 600 !important;
-    text-transform: uppercase !important;
-}
+
 [data-testid="stSidebar"] .stCaption p,
 [data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {
-    color: #475569 !important;
-    font-size: 11px !important;
-    text-align: center !important;
+    color: #CBD5E1 !important;
+}
+
+[data-testid="stSidebar"] hr {
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+/* Sidebar inputs and controls */
+[data-testid="stSidebar"] .stTextInput input,
+[data-testid="stSidebar"] .stNumberInput input,
+[data-testid="stSidebar"] .stTextArea textarea,
+[data-testid="stSidebar"] .stSelectbox > div > div {
+    background: #111827 !important;
+    color: #F8FAFC !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+}
+[data-testid="stSidebar"] .stTextInput input::placeholder,
+[data-testid="stSidebar"] .stNumberInput input::placeholder,
+[data-testid="stSidebar"] .stTextArea textarea::placeholder {
+    color: rgba(248,248,252,0.65) !important;
+}
+[data-testid="stSidebar"] .stButton > button,
+[data-testid="stSidebar"] .stDownloadButton > button,
+[data-testid="stSidebar"] [data-testid="stFormSubmitButton"] > button {
+    background: #0F766E !important;
+    color: #FFFFFF !important;
+    border: none !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover,
+[data-testid="stSidebar"] [data-testid="stFormSubmitButton"] > button:hover,
+[data-testid="stSidebar"] .stDownloadButton > button:hover {
+    background: #0D5C56 !important;
+}
+
+/* Sidebar radio buttons */
+[data-testid="stSidebar"] .stRadio {
+    color: #F8FAFC !important;
 }
 
 /* ══════════════════════════════
@@ -603,19 +633,11 @@ def preprocess_batch(df_raw):
 # SIDEBAR
 # ─────────────────────────────────────────
 with st.sidebar:
-    st.markdown("""
-    <div style="padding:20px 16px 16px; border-bottom:1px solid #334155;">
-        <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-size:24px;">🛡️</span>
-            <div>
-                <p style="font-size:15px; font-weight:700; margin:0; color:#F1F5F9;">MediGuard</p>
-                <p style="font-size:11px; color:#94A3B8; margin:0;">Fraud Detection</p>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Logo — use write() so global <p> CSS override doesn't swallow the colour
+    st.write("🛡️  **MediGuard**")
+    st.write("Fraud Detection System")
 
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    st.markdown("---")
 
     page = st.radio("nav", [
         "🏠  Dashboard",
@@ -625,19 +647,15 @@ with st.sidebar:
         "📄  Document Scanner"
     ], label_visibility="collapsed")
 
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
     st.markdown("---")
 
     is_valid, _ = bc.verify_integrity()
-    st.markdown("**System Status**")
 
-    col_a, col_b = st.columns(2)
-    col_a.metric("Blocks",    len(bc.chain))
-    col_b.metric("Processed", st.session_state.total_processed)
-    col_c, col_d = st.columns(2)
-    col_c.metric("Flagged",   st.session_state.total_fraud)
-    col_d.metric("Chain",     "OK" if is_valid else "ERR")
-
+    st.write("**SYSTEM STATUS**")
+    st.write(f"Blocks: **{len(bc.chain)}**")
+    st.write(f"Processed: **{st.session_state.total_processed}**")
+    st.write(f"Flagged: **{st.session_state.total_fraud}**")
+    st.write(f"Chain: **{'✅ OK' if is_valid else '❌ ERR'}**")
     st.caption(f"ANN v1.0  ·  {datetime.now().strftime('%d %b %Y')}")
 
 
