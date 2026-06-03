@@ -1,15 +1,12 @@
+# main_fixed.py
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
 
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
-
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
     accuracy_score,
@@ -19,350 +16,529 @@ from sklearn.metrics import (
     roc_curve
 )
 
-from imblearn.over_sampling import SMOTE
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 
-# ─────────────────────────────────────────
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline
+
+
+# ============================================================
 # STEP 1: Load dataset
-# ─────────────────────────────────────────
+# ============================================================
+
 df = pd.read_csv("healthcare_fraud_detection.csv")
+
 print("Dataset loaded:", df.shape)
 print("\nClass distribution:")
-print(df['Is_Fraud'].value_counts())
+print(df["Is_Fraud"].value_counts())
 
-# ─────────────────────────────────────────
-# STEP 2: Drop useless columns
-# ─────────────────────────────────────────
-df = df.drop(['Provider_ID', 'Claim_ID', 'Claim_Submission_Date'], axis=1)
 
-# ─────────────────────────────────────────
-# STEP 3: Handle missing values properly
-# ─────────────────────────────────────────
-for col in df.select_dtypes(include='number').columns:
-    df[col] = df[col].fillna(df[col].mean())
+# ============================================================
+# STEP 2: Drop unnecessary columns
+# ============================================================
 
-for col in df.select_dtypes(include='object').columns:
-    df[col] = df[col].fillna(df[col].mode()[0])
+drop_cols = ["Provider_ID", "Claim_ID", "Claim_Submission_Date"]
+df = df.drop(columns=drop_cols, errors="ignore")
 
-# ─────────────────────────────────────────
-# STEP 4: Feature Engineering
-# ─────────────────────────────────────────
-df['claim_to_cost_ratio'] = df['Claim_Amount'] / (df['Approved_Amount'] + 1)
+print("\nColumns after dropping unnecessary columns:")
+print(df.columns.tolist())
 
-Q1  = df['Claim_Amount'].quantile(0.25)
-Q3  = df['Claim_Amount'].quantile(0.75)
-IQR = Q3 - Q1
-df['cost_outlier_flag'] = (df['Claim_Amount'] > Q3 + 1.5 * IQR).astype(int)
 
-df['high_claim_frequency'] = (
-    df['Number_of_Claims_Per_Provider_Monthly'] >
-    df['Number_of_Claims_Per_Provider_Monthly'].quantile(0.90)
-).astype(int)
+# ============================================================
+# STEP 3: Split features and target BEFORE preprocessing
+# ============================================================
 
-print("\nFeature engineering done. New shape:", df.shape)
+X = df.drop("Is_Fraud", axis=1)
+y = df["Is_Fraud"]
 
-# ─────────────────────────────────────────
-# STEP 5: Convert text columns to numbers
-# ─────────────────────────────────────────
-df = pd.get_dummies(df)
-
-# ─────────────────────────────────────────
-# STEP 6: Split features and target
-# ─────────────────────────────────────────
-X = df.drop('Is_Fraud', axis=1)
-y = df['Is_Fraud']
-
-# ─────────────────────────────────────────
-# STEP 7: Train-test split
-# ─────────────────────────────────────────
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
+    X,
+    y,
+    test_size=0.2,
+    random_state=42,
+    stratify=y
 )
 
-# Save original counts BEFORE SMOTE for chart
-fraud_before = y_train.value_counts()[1]
-legit_before  = y_train.value_counts()[0]
+print("\nTraining set shape:", X_train.shape)
+print("Testing set shape:", X_test.shape)
 
-# ─────────────────────────────────────────
-# STEP 8: SMOTE — handle class imbalance
-# (must be BEFORE scaling)
-# ─────────────────────────────────────────
-sm = SMOTE(random_state=42)
-X_train_smote, y_train_smote = sm.fit_resample(X_train, y_train)
+
+# ============================================================
+# STEP 4: Preprocessing functions
+# ============================================================
+
+def fit_preprocess_train(X_train):
+    """
+    Fit preprocessing only on training data.
+    This avoids data leakage from the test set.
+    """
+
+    X_train = X_train.copy()
+
+    # Identify numeric and categorical columns
+    numeric_cols = X_train.select_dtypes(include="number").columns.tolist()
+    categorical_cols = X_train.select_dtypes(include="object").columns.tolist()
+
+    # Store training-set means and modes
+    numeric_means = X_train[numeric_cols].mean()
+
+    if len(categorical_cols) > 0:
+        categorical_modes = X_train[categorical_cols].mode().iloc[0]
+    else:
+        categorical_modes = pd.Series(dtype="object")
+
+    # Fill missing numeric values using training mean
+    for col in numeric_cols:
+        X_train[col] = X_train[col].fillna(numeric_means[col])
+
+    # Fill missing categorical values using training mode
+    for col in categorical_cols:
+        X_train[col] = X_train[col].fillna(categorical_modes[col])
+
+    # Feature engineering thresholds learned from training data only
+    claim_q1 = X_train["Claim_Amount"].quantile(0.25)
+    claim_q3 = X_train["Claim_Amount"].quantile(0.75)
+    claim_iqr = claim_q3 - claim_q1
+
+    high_claim_threshold = X_train["Number_of_Claims_Per_Provider_Monthly"].quantile(0.90)
+
+    # Feature engineering
+    X_train["claim_to_cost_ratio"] = (
+        X_train["Claim_Amount"] / (X_train["Approved_Amount"] + 1)
+    )
+
+    X_train["cost_outlier_flag"] = (
+        X_train["Claim_Amount"] > claim_q3 + 1.5 * claim_iqr
+    ).astype(int)
+
+    X_train["high_claim_frequency"] = (
+        X_train["Number_of_Claims_Per_Provider_Monthly"] > high_claim_threshold
+    ).astype(int)
+
+    # Convert categorical columns to dummy variables
+    X_train = pd.get_dummies(X_train)
+
+    preprocess_info = {
+        "numeric_cols": numeric_cols,
+        "categorical_cols": categorical_cols,
+        "numeric_means": numeric_means,
+        "categorical_modes": categorical_modes,
+        "claim_q1": claim_q1,
+        "claim_q3": claim_q3,
+        "claim_iqr": claim_iqr,
+        "high_claim_threshold": high_claim_threshold,
+        "feature_columns": X_train.columns.tolist()
+    }
+
+    return X_train, preprocess_info
+
+
+def transform_preprocess(X_data, preprocess_info):
+    """
+    Apply the same preprocessing rules learned from training data
+    to validation, test, or new uploaded data.
+    """
+
+    X_data = X_data.copy()
+
+    numeric_cols = preprocess_info["numeric_cols"]
+    categorical_cols = preprocess_info["categorical_cols"]
+    numeric_means = preprocess_info["numeric_means"]
+    categorical_modes = preprocess_info["categorical_modes"]
+
+    # Fill missing numeric values
+    for col in numeric_cols:
+        if col in X_data.columns:
+            X_data[col] = X_data[col].fillna(numeric_means[col])
+
+    # Fill missing categorical values
+    for col in categorical_cols:
+        if col in X_data.columns:
+            X_data[col] = X_data[col].fillna(categorical_modes[col])
+
+    claim_q3 = preprocess_info["claim_q3"]
+    claim_iqr = preprocess_info["claim_iqr"]
+    high_claim_threshold = preprocess_info["high_claim_threshold"]
+
+    # Apply same feature engineering
+    X_data["claim_to_cost_ratio"] = (
+        X_data["Claim_Amount"] / (X_data["Approved_Amount"] + 1)
+    )
+
+    X_data["cost_outlier_flag"] = (
+        X_data["Claim_Amount"] > claim_q3 + 1.5 * claim_iqr
+    ).astype(int)
+
+    X_data["high_claim_frequency"] = (
+        X_data["Number_of_Claims_Per_Provider_Monthly"] > high_claim_threshold
+    ).astype(int)
+
+    # Convert categorical columns to dummy variables
+    X_data = pd.get_dummies(X_data)
+
+    # Match training feature columns exactly
+    X_data = X_data.reindex(
+        columns=preprocess_info["feature_columns"],
+        fill_value=0
+    )
+
+    return X_data
+
+
+# ============================================================
+# STEP 5: Apply preprocessing
+# ============================================================
+
+X_train_processed, preprocess_info = fit_preprocess_train(X_train)
+X_test_processed = transform_preprocess(X_test, preprocess_info)
+
+joblib.dump(preprocess_info, "preprocess_info.pkl")
+
+print("\nPreprocessing completed.")
+print("Processed training shape:", X_train_processed.shape)
+print("Processed testing shape:", X_test_processed.shape)
+print("Saved: preprocess_info.pkl")
+
+
+# ============================================================
+# STEP 6: SMOTE — handle class imbalance on training set only
+# ============================================================
+
+fraud_before = y_train.value_counts()[1]
+legit_before = y_train.value_counts()[0]
+
+smote = SMOTE(random_state=42)
+X_train_smote, y_train_smote = smote.fit_resample(X_train_processed, y_train)
 
 fraud_after = pd.Series(y_train_smote).value_counts()[1]
-legit_after  = pd.Series(y_train_smote).value_counts()[0]
+legit_after = pd.Series(y_train_smote).value_counts()[0]
 
 print("\nBefore SMOTE:")
-print(f"  Legitimate: {legit_before} | Fraud: {fraud_before}")
-print("\nAfter SMOTE:")
-print(f"  Legitimate: {legit_after} | Fraud: {fraud_after}")
+print(f"Legitimate: {legit_before} | Fraud: {fraud_before}")
 
-# ─────────────────────────────────────────
-# NEW: SMOTE Before vs After Chart
-# ─────────────────────────────────────────
+print("\nAfter SMOTE:")
+print(f"Legitimate: {legit_after} | Fraud: {fraud_after}")
+
+
+# ============================================================
+# STEP 7: SMOTE before vs after chart
+# ============================================================
+
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
 
-ax1.bar(['Legitimate', 'Fraud'],
-        [legit_before, fraud_before],
-        color=['steelblue', 'salmon'],
-        edgecolor='white')
+ax1.bar(
+    ["Legitimate", "Fraud"],
+    [legit_before, fraud_before],
+    color=["steelblue", "salmon"],
+    edgecolor="white"
+)
 ax1.set_title("Before SMOTE")
 ax1.set_ylabel("Number of Records")
 ax1.set_ylim(0, legit_after + 500)
-for i, v in enumerate([legit_before, fraud_before]):
-    ax1.text(i, v + 100, str(v), ha='center', fontweight='bold')
 
-ax2.bar(['Legitimate', 'Fraud'],
-        [legit_after, fraud_after],
-        color=['steelblue', 'salmon'],
-        edgecolor='white')
+for i, v in enumerate([legit_before, fraud_before]):
+    ax1.text(i, v + 100, str(v), ha="center", fontweight="bold")
+
+
+ax2.bar(
+    ["Legitimate", "Fraud"],
+    [legit_after, fraud_after],
+    color=["steelblue", "salmon"],
+    edgecolor="white"
+)
 ax2.set_title("After SMOTE")
 ax2.set_ylabel("Number of Records")
 ax2.set_ylim(0, legit_after + 500)
-for i, v in enumerate([legit_after, fraud_after]):
-    ax2.text(i, v + 100, str(v), ha='center', fontweight='bold')
 
-plt.suptitle("Class Distribution Before and After SMOTE",
-             fontsize=13, fontweight='bold')
+for i, v in enumerate([legit_after, fraud_after]):
+    ax2.text(i, v + 100, str(v), ha="center", fontweight="bold")
+
+plt.suptitle(
+    "Class Distribution Before and After SMOTE",
+    fontsize=13,
+    fontweight="bold"
+)
 plt.tight_layout()
-plt.savefig("smote_comparison.png")
+plt.savefig("smote_comparison.png", dpi=300)
 plt.show()
+
 print("Saved: smote_comparison.png")
 
-# ─────────────────────────────────────────
-# STEP 9: Feature scaling (after SMOTE)
-# ─────────────────────────────────────────
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train_smote)
-X_test_scaled  = scaler.transform(X_test)
 
-joblib.dump(scaler, 'scaler.pkl')
+# ============================================================
+# STEP 8: Feature scaling
+# ============================================================
+
+scaler = StandardScaler()
+
+X_train_scaled = scaler.fit_transform(X_train_smote)
+X_test_scaled = scaler.transform(X_test_processed)
+
+joblib.dump(scaler, "scaler.pkl")
+
 print("\nScaler saved to scaler.pkl")
 
-# ─────────────────────────────────────────
-# STEP 10: Define all models
-# ─────────────────────────────────────────
+
+# ============================================================
+# STEP 9: Define baseline models
+# ============================================================
+
 models = {
     "Logistic Regression": LogisticRegression(max_iter=3000, random_state=42),
-    "Decision Tree":       DecisionTreeClassifier(random_state=42),
-    "Random Forest":       RandomForestClassifier(n_estimators=100, random_state=42),
-    "XGBoost":             XGBClassifier(eval_metric='logloss', random_state=42)
+    "Decision Tree": DecisionTreeClassifier(random_state=42),
+    "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
+    "XGBoost": XGBClassifier(eval_metric="logloss", random_state=42)
 }
 
-# ─────────────────────────────────────────
-# STEP 11: Train, evaluate, save results
-# ─────────────────────────────────────────
+
+# ============================================================
+# STEP 10: Train, evaluate, and save results
+# ============================================================
+
 model_names = []
-accuracies  = []
-recalls     = []
-f1_scores   = []
-roc_aucs    = []
+accuracies = []
+precisions = []
+recalls = []
+f1_scores = []
+roc_aucs = []
+
 saved_models = {}
 
 for name, model in models.items():
-    print(f"\n{'='*50}")
+    print("\n" + "=" * 60)
     print(f"Training: {name}")
-    print('='*50)
+    print("=" * 60)
 
+    # Train model
     model.fit(X_train_scaled, y_train_smote)
+
+    # Predictions
     pred = model.predict(X_test_scaled)
     prob = model.predict_proba(X_test_scaled)[:, 1]
 
+    # Evaluation
     report = classification_report(y_test, pred, output_dict=True)
-    acc    = accuracy_score(y_test, pred)
-    roc    = roc_auc_score(y_test, prob)
+    acc = accuracy_score(y_test, pred)
+    roc = roc_auc_score(y_test, prob)
+
+    precision_fraud = report["1"]["precision"]
+    recall_fraud = report["1"]["recall"]
+    f1_fraud = report["1"]["f1-score"]
 
     print(classification_report(y_test, pred))
-    print(f"Accuracy : {acc:.4f}")
-    print(f"ROC-AUC  : {roc:.4f}")
+    print(f"Accuracy          : {acc:.4f}")
+    print(f"Precision (Fraud) : {precision_fraud:.4f}")
+    print(f"Recall (Fraud)    : {recall_fraud:.4f}")
+    print(f"F1-score (Fraud)  : {f1_fraud:.4f}")
+    print(f"ROC-AUC           : {roc:.4f}")
 
+    # Store results
     model_names.append(name)
     accuracies.append(acc)
-    recalls.append(report['1']['recall'])
-    f1_scores.append(report['1']['f1-score'])
+    precisions.append(precision_fraud)
+    recalls.append(recall_fraud)
+    f1_scores.append(f1_fraud)
     roc_aucs.append(roc)
+
     saved_models[name] = model
 
-    # Confusion Matrix
+    # Confusion matrix
     cm = confusion_matrix(y_test, pred)
+
     plt.figure(figsize=(6, 4))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                xticklabels=['Legitimate', 'Fraud'],
-                yticklabels=['Legitimate', 'Fraud'])
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=["Legitimate", "Fraud"],
+        yticklabels=["Legitimate", "Fraud"]
+    )
     plt.xlabel("Predicted")
     plt.ylabel("Actual")
     plt.title(f"Confusion Matrix — {name}")
     plt.tight_layout()
-    plt.savefig(f"confusion_matrix_{name.replace(' ', '_')}.png")
-    plt.show()
-    print(f"Saved: confusion_matrix_{name.replace(' ', '_')}.png")
 
-joblib.dump(saved_models, 'baseline_models.pkl')
+    filename = f"confusion_matrix_{name.replace(' ', '_')}.png"
+    plt.savefig(filename, dpi=300)
+    plt.show()
+
+    print(f"Saved: {filename}")
+
+
+joblib.dump(saved_models, "baseline_models.pkl")
 print("\nAll baseline models saved to baseline_models.pkl")
 
-# ─────────────────────────────────────────
-# STEP 12: Model comparison bar chart
-# ─────────────────────────────────────────
-x     = np.arange(len(model_names))
+
+# ============================================================
+# STEP 11: Model comparison chart
+# ============================================================
+
+x = np.arange(len(model_names))
 width = 0.2
 
 fig, ax = plt.subplots(figsize=(12, 6))
-ax.bar(x - width, accuracies, width, label='Accuracy',       color='steelblue')
-ax.bar(x,         recalls,    width, label='Recall (Fraud)', color='salmon')
-ax.bar(x + width, f1_scores,  width, label='F1 (Fraud)',     color='mediumseagreen')
+
+ax.bar(x - width, accuracies, width, label="Accuracy", color="steelblue")
+ax.bar(x, recalls, width, label="Recall (Fraud)", color="salmon")
+ax.bar(x + width, f1_scores, width, label="F1-score (Fraud)", color="mediumseagreen")
 
 ax.set_xlabel("Model")
 ax.set_ylabel("Score")
-ax.set_title("Model Comparison — Accuracy, Recall, F1-Score")
+ax.set_title("Baseline Model Comparison — Accuracy, Recall, and F1-score")
 ax.set_xticks(x)
 ax.set_xticklabels(model_names)
 ax.set_ylim(0, 1.1)
 ax.legend()
+
 plt.tight_layout()
-plt.savefig("model_comparison.png")
+plt.savefig("model_comparison.png", dpi=300)
 plt.show()
+
 print("Saved: model_comparison.png")
 
-# ─────────────────────────────────────────
-# STEP 13: ROC Curve comparison
-# ─────────────────────────────────────────
+
+# ============================================================
+# STEP 12: ROC curve comparison
+# ============================================================
+
 plt.figure(figsize=(8, 6))
 
 for name, model in saved_models.items():
-    prob       = model.predict_proba(X_test_scaled)[:, 1]
+    prob = model.predict_proba(X_test_scaled)[:, 1]
     fpr, tpr, _ = roc_curve(y_test, prob)
-    auc        = roc_auc_score(y_test, prob)
+    auc = roc_auc_score(y_test, prob)
+
     plt.plot(fpr, tpr, label=f"{name} (AUC={auc:.2f})")
 
-plt.plot([0, 1], [0, 1], 'k--', label='Random baseline')
+plt.plot([0, 1], [0, 1], "k--", label="Random baseline")
+
 plt.xlabel("False Positive Rate")
 plt.ylabel("True Positive Rate")
-plt.title("ROC Curve Comparison — All Baseline Models")
+plt.title("ROC Curve Comparison — Baseline Models")
 plt.legend()
 plt.tight_layout()
-plt.savefig("roc_curve_comparison.png")
+plt.savefig("roc_curve_comparison.png", dpi=300)
 plt.show()
+
 print("Saved: roc_curve_comparison.png")
 
-# ─────────────────────────────────────────
-# STEP 14: Summary table
-# ─────────────────────────────────────────
+
+# ============================================================
+# STEP 13: Summary table
+# ============================================================
+
 summary = pd.DataFrame({
-    'Model':          model_names,
-    'Accuracy':       [round(a, 4) for a in accuracies],
-    'Recall (Fraud)': [round(r, 4) for r in recalls],
-    'F1 (Fraud)':     [round(f, 4) for f in f1_scores],
-    'ROC-AUC':        [round(r, 4) for r in roc_aucs]
+    "Model": model_names,
+    "Accuracy": [round(a, 4) for a in accuracies],
+    "Precision (Fraud)": [round(p, 4) for p in precisions],
+    "Recall (Fraud)": [round(r, 4) for r in recalls],
+    "F1-score (Fraud)": [round(f, 4) for f in f1_scores],
+    "ROC-AUC": [round(r, 4) for r in roc_aucs]
 })
 
-print("\n" + "="*60)
-print("FINAL SUMMARY TABLE")
-print("="*60)
+print("\n" + "=" * 70)
+print("FINAL BASELINE MODEL SUMMARY TABLE")
+print("=" * 70)
 print(summary.to_string(index=False))
+
 summary.to_csv("model_summary.csv", index=False)
+
 print("\nSaved: model_summary.csv")
 
-# ─────────────────────────────────────────
-# NEW STEP 15: Cross validation (5-fold)
-# ─────────────────────────────────────────
-print("\n" + "="*60)
+
+# ============================================================
+# STEP 14: Cross-validation using proper pipeline
+# ============================================================
+
+print("\n" + "=" * 70)
 print("CROSS VALIDATION — 5-Fold Recall Scores")
-print("="*60)
+print("=" * 70)
+
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
 cv_results = {}
 
 for name, model in models.items():
-    scores = cross_val_score(
-        model,
-        X_train_scaled,
-        y_train_smote,
-        cv=5,
-        scoring='recall'
-    )
-    cv_results[name] = scores
-    print(f"{name}:")
-    print(f"  Fold scores : {scores.round(4)}")
-    print(f"  Mean Recall : {scores.mean():.4f}")
-    print(f"  Std Dev     : {scores.std():.4f}")
+    pipeline = Pipeline([
+        ("smote", SMOTE(random_state=42)),
+        ("scaler", StandardScaler()),
+        ("model", model)
+    ])
 
-# Cross validation bar chart
-cv_means = [cv_results[n].mean() for n in model_names]
-cv_stds  = [cv_results[n].std()  for n in model_names]
+    scores = cross_val_score(
+        pipeline,
+        X_train_processed,
+        y_train,
+        cv=cv,
+        scoring="recall"
+    )
+
+    cv_results[name] = scores
+
+    print(f"\n{name}:")
+    print(f"Fold scores : {scores.round(4)}")
+    print(f"Mean Recall : {scores.mean():.4f}")
+    print(f"Std Dev     : {scores.std():.4f}")
+
+
+# ============================================================
+# STEP 15: Cross-validation chart
+# ============================================================
+
+cv_means = [cv_results[name].mean() for name in model_names]
+cv_stds = [cv_results[name].std() for name in model_names]
 
 plt.figure(figsize=(10, 5))
-bars = plt.bar(model_names, cv_means,
-               yerr=cv_stds,
-               color='steelblue',
-               edgecolor='white',
-               capsize=5)
-plt.ylabel("Mean Recall (5-Fold CV)")
-plt.title("Cross Validation — Mean Recall with Standard Deviation")
+
+bars = plt.bar(
+    model_names,
+    cv_means,
+    yerr=cv_stds,
+    color="steelblue",
+    edgecolor="white",
+    capsize=5
+)
+
+plt.ylabel("Mean Recall")
+plt.title("5-Fold Cross-Validation — Fraud Recall with Standard Deviation")
 plt.ylim(0, 1.1)
+
 for bar, mean in zip(bars, cv_means):
-    plt.text(bar.get_x() + bar.get_width() / 2,
-             bar.get_height() + 0.02,
-             f"{mean:.4f}",
-             ha='center', fontsize=10, fontweight='bold')
+    plt.text(
+        bar.get_x() + bar.get_width() / 2,
+        mean + 0.03,
+        f"{mean:.2f}",
+        ha="center",
+        fontweight="bold"
+    )
+
 plt.tight_layout()
-plt.savefig("cross_validation_recall.png")
+plt.savefig("cross_validation_recall.png", dpi=300)
 plt.show()
-print("\nSaved: cross_validation_recall.png")
 
-# ─────────────────────────────────────────
-# NEW STEP 16: Feature importance chart
-# ─────────────────────────────────────────
-print("\n" + "="*60)
-print("FEATURE IMPORTANCE — Random Forest")
-print("="*60)
+print("Saved: cross_validation_recall.png")
 
-rf_model      = saved_models["Random Forest"]
-feature_names = list(X.columns)
-importances   = rf_model.feature_importances_
-indices       = np.argsort(importances)[::-1][:15]
 
-print("Top 15 most important features:")
-for i, idx in enumerate(indices):
-    print(f"  {i+1:2}. {feature_names[idx]:<45} {importances[idx]:.4f}")
+# ============================================================
+# STEP 16: Save best model based on fraud recall
+# ============================================================
 
-plt.figure(figsize=(10, 6))
-plt.barh(
-    range(15),
-    importances[indices][::-1],
-    color='steelblue',
-    edgecolor='white'
-)
-plt.yticks(
-    range(15),
-    [feature_names[i] for i in indices][::-1]
-)
-plt.xlabel("Importance Score")
-plt.title("Top 15 Most Important Features — Random Forest")
-plt.tight_layout()
-plt.savefig("feature_importance.png")
-plt.show()
-print("Saved: feature_importance.png")
+best_index = np.argmax(recalls)
+best_model_name = model_names[best_index]
+best_model = saved_models[best_model_name]
 
-# ─────────────────────────────────────────
-# FINAL: List all saved files
-# ─────────────────────────────────────────
-print("\n" + "="*60)
-print("ALL FILES SAVED")
-print("="*60)
-files = [
-    "scaler.pkl",
-    "baseline_models.pkl",
-    "model_summary.csv",
-    "smote_comparison.png",
-    "model_comparison.png",
-    "roc_curve_comparison.png",
-    "cross_validation_recall.png",
-    "feature_importance.png",
-    "confusion_matrix_Logistic_Regression.png",
-    "confusion_matrix_Decision_Tree.png",
-    "confusion_matrix_Random_Forest.png",
-    "confusion_matrix_XGBoost.png",
-]
-for f in files:
-    print(f"  ✓ {f}")
+joblib.dump(best_model, "best_baseline_model.pkl")
 
-print("\nDone! Run ann_model.py next.")
+print("\n" + "=" * 70)
+print("BEST BASELINE MODEL")
+print("=" * 70)
+print(f"Best model based on fraud recall: {best_model_name}")
+print(f"Fraud recall: {recalls[best_index]:.4f}")
+print("Saved: best_baseline_model.pkl")
+
+
+print("\nTraining and evaluation completed successfully.")
