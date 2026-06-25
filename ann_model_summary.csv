@@ -1,2 +1,2 @@
 Model,Accuracy,Precision (Fraud),Recall (Fraud),F1-score (Fraud),ROC-AUC
-ANN,0.9895,0.956,0.9157,0.9354,0.998
+ANN,0.991,0.9684,0.9217,0.9444,0.9981
