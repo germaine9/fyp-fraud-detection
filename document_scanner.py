@@ -12,7 +12,7 @@ from PIL import Image
 
 import pytesseract
 import pdfplumber
-
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # ============================================================
 # TEXT EXTRACTION
@@ -369,7 +369,8 @@ def render_document_scanner(model, scaler, bc, preprocess_info=None):
 
     st.subheader("Step 2: Extract Claim Fields")
     raw_fields = parse_claim_fields(extracted_text)
-    filled_fields = fill_defaults(raw_fields)
+    filled_fields = raw_fields.copy()
+    filled_fields = fill_defaults(filled_fields)
 
     left, right = st.columns(2)
     with left:
@@ -483,6 +484,6 @@ Previous Hash  : {block.previous_hash}"""
         summary_table = pd.DataFrame({
             "Field": list(filled_fields.keys()),
             "Value": list(filled_fields.values()),
-            "Source": ["Extracted" if raw_fields.get(key) is not None else "Default / Reviewed" for key in filled_fields.keys()],
+            "Source": ["Extracted" if key in raw_fields and raw_fields[key] is not None else "Default"for key in filled_fields.keys()]
         })
         st.dataframe(summary_table, use_container_width=True)
