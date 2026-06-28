@@ -7,7 +7,8 @@
 # Purpose:
 # - Check that key files can be loaded
 # - Check dataset structure
-# - Check trained models
+# - Check preprocessing artefacts
+# - Check XGBoost final model and ANN comparison model
 # - Check blockchain integrity and tamper detection
 # - Avoid touching the real blockchain_data.json file
 
@@ -28,7 +29,6 @@ failed = 0
 
 
 def test(name, condition):
-    """Simple test result printer."""
     global passed, failed
 
     if condition:
@@ -102,23 +102,7 @@ except Exception as error:
 
 
 # ============================================================
-# TEST 4: ANN model
-# ============================================================
-
-try:
-    from tensorflow.keras.models import load_model
-
-    model = load_model("ann_model.keras")
-
-    test("ANN model loads successfully", True)
-    test("ANN output shape is one output neuron", model.output_shape[-1] == 1)
-
-except Exception as error:
-    test(f"ANN model load error: {error}", False)
-
-
-# ============================================================
-# TEST 5: Baseline models
+# TEST 4: Baseline models and final XGBoost model
 # ============================================================
 
 try:
@@ -138,8 +122,29 @@ try:
     for name in expected_models:
         test(f"Baseline model exists: {name}", name in baseline_models)
 
+    if "XGBoost" in baseline_models:
+        xgb_model = baseline_models["XGBoost"]
+        test("Final selected model is XGBoost", xgb_model.__class__.__name__ == "XGBClassifier")
+        test("XGBoost supports predict_proba", hasattr(xgb_model, "predict_proba"))
+
 except Exception as error:
-    test(f"Baseline models load error: {error}", False)
+    test(f"Baseline/XGBoost model load error: {error}", False)
+
+
+# ============================================================
+# TEST 5: ANN comparison model
+# ============================================================
+
+try:
+    from tensorflow.keras.models import load_model
+
+    ann_model = load_model("ann_model.keras")
+
+    test("ANN comparison model loads successfully", True)
+    test("ANN output shape is one output neuron", ann_model.output_shape[-1] == 1)
+
+except Exception as error:
+    test(f"ANN model load error: {error}", False)
 
 
 # ============================================================
@@ -167,9 +172,14 @@ for file_name in summary_files:
 # ============================================================
 
 image_files = [
+    "confusion_matrix_XGBoost.png",
+    "model_comparison.png",
+    "roc_curve_comparison.png",
     "confusion_matrix_ANN.png",
     "ann_training_history.png",
-    "roc_curve_ANN.png"
+    "roc_curve_ANN.png",
+    "cross_validation_recall.png",
+    "smote_comparison.png"
 ]
 
 for file_name in image_files:
@@ -186,7 +196,6 @@ try:
 
     test_chain_file = "test_system_chain.json"
 
-    # Make sure this test does not use or modify the real blockchain_data.json
     if os.path.exists(test_chain_file):
         os.remove(test_chain_file)
 
@@ -197,13 +206,15 @@ try:
 
     block = bc.add_record(
         {"claim_id": "TEST-001", "amount": 1000},
-        0.82
+        0.82,
+        source="System Test"
     )
 
     test("New block added successfully", len(bc.chain) == 2)
     test("Fraud decision is correct", block.decision == "Fraudulent")
     test("Block hash is 64 characters", len(block.hash) == 64)
     test("Block has nonce attribute", hasattr(block, "nonce"))
+    test("Block has model_version attribute", hasattr(block, "model_version"))
 
     if hasattr(bc, "difficulty"):
         test("Proof-of-Work hash meets difficulty", block.hash.startswith("0" * bc.difficulty))
@@ -211,14 +222,12 @@ try:
     is_valid, message = bc.verify_integrity()
     test("Blockchain integrity check passes", is_valid)
 
-    # Tamper test
     original_previous_hash = bc.chain[1].previous_hash
     bc.chain[1].previous_hash = "tampered_hash"
 
     is_valid_after_tamper, _ = bc.verify_integrity()
     test("Tamper detection works", not is_valid_after_tamper)
 
-    # Restore and clean up
     bc.chain[1].previous_hash = original_previous_hash
 
     if os.path.exists(test_chain_file):
