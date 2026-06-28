@@ -8,7 +8,6 @@ import joblib
 import hashlib
 import json
 from datetime import datetime, timezone
-from tensorflow.keras.models import load_model
 
 
 # ------------------------------------------------------------
@@ -507,7 +506,8 @@ class Blockchain:
 
 @st.cache_resource
 def load_resources():
-    model = load_model("ann_model.keras")
+    baseline_models = joblib.load("baseline_models.pkl")
+    model = baseline_models["XGBoost"]
     scaler = joblib.load("scaler.pkl")
     preprocess_info = joblib.load("preprocess_info.pkl")
     return model, scaler, preprocess_info
@@ -516,7 +516,7 @@ def load_resources():
 try:
     model, scaler, preprocess_info = load_resources()
 except Exception:
-    st.error("Required model files are missing. Please run main_fixed.py and train_ann_fixed.py first.")
+    st.error("Required model files are missing. Please run the training scripts first to generate baseline_models.pkl, scaler.pkl, and preprocess_info.pkl.")
     st.stop()
 
 
@@ -596,9 +596,16 @@ def preprocess_claims(input_df):
 
 def run_prediction(input_df):
     processed_data = preprocess_claims(input_df)
-    scores = model.predict(processed_data, verbose=0).flatten()
-    decisions = ["Fraudulent" if s >= 0.5 else "Legitimate" for s in scores]
-    risks = [risk_level(s) for s in scores]
+
+    # XGBoost returns class probabilities through predict_proba().
+    # Column index 1 is the probability of the fraud class.
+    if hasattr(model, "predict_proba"):
+        scores = model.predict_proba(processed_data)[:, 1]
+    else:
+        scores = model.predict(processed_data)
+
+    decisions = ["Fraudulent" if float(s) >= 0.5 else "Legitimate" for s in scores]
+    risks = [risk_level(float(s)) for s in scores]
     return scores, decisions, risks
 
 
@@ -778,7 +785,7 @@ if page == "Home":
 elif page == "Single Claim":
 
     st.title("Single Claim Prediction")
-    st.write("Fill in a claim record and run the ANN model.")
+    st.write("Fill in a claim record and run the final selected XGBoost fraud detection model.")
 
     with st.container(border=True):
         st.write("Example values")
@@ -1016,7 +1023,7 @@ elif page == "OCR Scanner":
     st.title("OCR Document Scanner")
 
     st.write(
-        "This page loads the optional OCR module if `document_scanner.py` is available in the project folder."
+        "This page loads the optional OCR module if `document_scanner.py` is available in the project folder. The reviewed fields are passed to the final selected XGBoost model."
     )
 
     try:
@@ -1085,7 +1092,7 @@ elif page == "Model Results":
 
     st.title("Model Results")
 
-    st.write("This page displays evaluation outputs generated during model training.")
+    st.write("This page displays evaluation outputs generated during model training. XGBoost is used as the final selected model because it achieved the strongest overall performance.")
 
     try:
         summary = pd.read_csv("full_model_summary.csv")
@@ -1100,21 +1107,21 @@ elif page == "Model Results":
 
     with col1:
         try:
-            st.image("confusion_matrix_ANN.png", caption="ANN Confusion Matrix", use_container_width=True)
+            st.image("confusion_matrix_XGBoost.png", caption="XGBoost Confusion Matrix", use_container_width=True)
         except Exception:
-            st.info("confusion_matrix_ANN.png not found.")
+            st.info("confusion_matrix_XGBoost.png not found.")
 
     with col2:
         try:
-            st.image("ann_training_history.png", caption="ANN Training History", use_container_width=True)
+            st.image("model_comparison.png", caption="Model Comparison", use_container_width=True)
         except Exception:
-            st.info("ann_training_history.png not found.")
+            st.info("model_comparison.png not found.")
 
     with col3:
         try:
-            st.image("roc_curve_ANN.png", caption="ANN ROC Curve", use_container_width=True)
+            st.image("roc_curve_comparison.png", caption="ROC Curve Comparison", use_container_width=True)
         except Exception:
-            st.info("roc_curve_ANN.png not found.")
+            st.info("roc_curve_comparison.png not found.")
 
 
 # ------------------------------------------------------------
@@ -1127,8 +1134,9 @@ elif page == "About":
 
     st.write("""
     This system is developed as a final year project prototype for healthcare fraud detection.
-    It uses an Artificial Neural Network model to classify healthcare insurance claims as
-    legitimate or potentially fraudulent.
+    It uses an XGBoost machine learning model as the final selected classifier to
+    classify healthcare insurance claims as legitimate or potentially fraudulent.
+    The ANN model is retained as a deep learning comparison model in the evaluation.
     """)
 
     st.subheader("Main functions")
