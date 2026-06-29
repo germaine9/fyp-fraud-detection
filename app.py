@@ -3,6 +3,7 @@
 # Run with: streamlit run app_clean.py
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import joblib
 import hashlib
@@ -24,14 +25,14 @@ st.set_page_config(
 
 
 # ------------------------------------------------------------
-# Minimal professional styling
+# Styling
 # ------------------------------------------------------------
 
 st.markdown("""
 <style>
 /* ============================================================
-   Warm clean theme v2
-   White + cream + amber accent. More polished but still FYP-like.
+   MediGuard — Warm Light Theme v3
+   White + cream + amber accent. Enhanced polish.
    ============================================================ */
 
 :root {
@@ -46,16 +47,17 @@ st.markdown("""
     --amber-dark: #9a4f0e;
     --amber-soft: #fff1d6;
     --red: #b91c1c;
+    --red-soft: #fef2f2;
+    --green: #166534;
+    --green-soft: #f0fdf4;
 }
 
-/* Hide Streamlit's black top toolbar/header for cleaner demo screenshots */
+/* Hide Streamlit chrome */
 header[data-testid="stHeader"] {
     background: transparent !important;
     height: 0rem !important;
 }
-#MainMenu, footer {
-    visibility: hidden !important;
-}
+#MainMenu, footer { visibility: hidden !important; }
 
 /* Overall app */
 .stApp {
@@ -65,74 +67,70 @@ header[data-testid="stHeader"] {
 }
 
 .block-container {
-    max-width: 1120px;
+    max-width: 1140px;
     padding-top: 1.4rem;
     padding-bottom: 2.4rem;
 }
 
-/* Text */
+/* ── Typography ── */
 h1, h2, h3 {
     color: var(--title) !important;
     font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif !important;
     letter-spacing: -0.01em !important;
 }
+h1 { font-size: 1.75rem !important; font-weight: 700 !important; }
+h2 { font-size: 1.28rem !important; font-weight: 650 !important; }
+h3 { font-size: 1.05rem !important; font-weight: 650 !important; }
+p, li, label { color: var(--text) !important; font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif !important; }
 
-h1 {
-    font-size: 1.75rem !important;
-    font-weight: 700 !important;
-}
-
-h2 {
-    font-size: 1.28rem !important;
-    font-weight: 650 !important;
-}
-
-h3 {
-    font-size: 1.05rem !important;
-    font-weight: 650 !important;
-}
-
-p, li, label {
-    color: var(--text) !important;
-    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif !important;
-}
-
-/* Sidebar */
+/* ── Sidebar ── */
 [data-testid="stSidebar"],
 [data-testid="stSidebar"] > div {
     background: #fff7ed !important;
     border-right: 1px solid var(--line) !important;
 }
-
 [data-testid="stSidebar"] * {
     color: var(--text) !important;
     background: transparent !important;
     opacity: 1 !important;
 }
-
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3 {
-    color: var(--title) !important;
-}
+[data-testid="stSidebar"] h3 { color: var(--title) !important; }
 
-/* Sidebar radio options: make them look like a simple menu */
+/* Sidebar radio as pill menu */
+[data-testid="stSidebar"] .stRadio [role="radiogroup"] { gap: 4px !important; }
 [data-testid="stSidebar"] .stRadio label {
-    padding: 6px 10px !important;
-    border-radius: 8px !important;
-    margin-bottom: 3px !important;
+    width: fit-content !important;
+    min-width: 140px !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    border-radius: 999px !important;
+    padding: 6px 14px !important;
+    margin-bottom: 5px !important;
+    transition: all 0.12s ease-in-out !important;
+    font-size: 0.93rem !important;
 }
-
 [data-testid="stSidebar"] .stRadio label:hover {
-    background: #ffedd5 !important;
+    background: #fff1d6 !important;
+    border-color: #eadfd1 !important;
 }
-
-[data-testid="stSidebar"] [aria-checked="true"] {
+[data-testid="stSidebar"] .stRadio label:has(input:checked) {
     background: #fed7aa !important;
-    border-radius: 8px !important;
+    border-color: #c56a12 !important;
+    font-weight: 650 !important;
+}
+/* Hide default radio circle */
+[data-testid="stSidebar"] .stRadio label > div:first-child { display: none !important; }
+
+/* Sidebar stat items */
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+    font-size: 0.88rem !important;
+    line-height: 1.7 !important;
+    color: var(--text) !important;
 }
 
-/* Buttons */
+/* ── Buttons ── */
 .stButton > button,
 .stDownloadButton > button,
 [data-testid="stFormSubmitButton"] > button {
@@ -142,24 +140,22 @@ p, li, label {
     border-radius: 7px !important;
     font-weight: 600 !important;
     min-height: 38px !important;
-    box-shadow: none !important;
+    box-shadow: 0 1px 3px rgba(197, 106, 18, 0.18) !important;
+    transition: all 0.12s ease !important;
 }
-
 .stButton > button:hover,
 .stDownloadButton > button:hover,
 [data-testid="stFormSubmitButton"] > button:hover {
     background: var(--amber-dark) !important;
     border-color: var(--amber-dark) !important;
     color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(154, 79, 14, 0.28) !important;
 }
-
 .stButton > button *,
 .stDownloadButton > button *,
-[data-testid="stFormSubmitButton"] > button * {
-    color: #ffffff !important;
-}
+[data-testid="stFormSubmitButton"] > button * { color: #ffffff !important; }
 
-/* Inputs */
+/* ── Inputs ── */
 .stTextInput input,
 .stNumberInput input,
 .stTextArea textarea {
@@ -168,15 +164,12 @@ p, li, label {
     border: 1px solid var(--line) !important;
     border-radius: 7px !important;
 }
-
 .stTextInput input:focus,
 .stNumberInput input:focus,
 .stTextArea textarea:focus {
     border-color: var(--amber) !important;
     box-shadow: 0 0 0 2px rgba(197, 106, 18, 0.14) !important;
 }
-
-/* Number input buttons */
 .stNumberInput button,
 .stNumberInput button * {
     background: #fff7ed !important;
@@ -184,20 +177,16 @@ p, li, label {
     border-color: var(--line) !important;
 }
 
-/* Selectboxes and dropdowns */
+/* ── Selectboxes ── */
 div[data-baseweb="select"],
 div[data-baseweb="select"] > div {
     background: #ffffff !important;
     color: var(--text) !important;
     border-color: var(--line) !important;
 }
-
 div[data-baseweb="select"] *,
 .stSelectbox *,
-.stMultiSelect * {
-    color: var(--text) !important;
-    opacity: 1 !important;
-}
+.stMultiSelect * { color: var(--text) !important; opacity: 1 !important; }
 
 div[data-baseweb="popover"],
 div[data-baseweb="popover"] > div,
@@ -208,7 +197,6 @@ ul[role="listbox"] {
     color: var(--text) !important;
     border: 1px solid var(--line) !important;
 }
-
 div[data-baseweb="popover"] *,
 div[data-baseweb="menu"] *,
 ul[role="listbox"] *,
@@ -220,7 +208,6 @@ div[role="option"] * {
     color: var(--text) !important;
     opacity: 1 !important;
 }
-
 li[role="option"]:hover,
 li[role="option"]:hover *,
 div[role="option"]:hover,
@@ -229,7 +216,7 @@ div[role="option"]:hover * {
     color: var(--title) !important;
 }
 
-/* File uploader */
+/* ── File uploader ── */
 [data-testid="stFileUploader"],
 [data-testid="stFileUploader"] section,
 [data-testid="stFileUploader"] section > div,
@@ -239,7 +226,6 @@ div[role="option"]:hover * {
     color: var(--text) !important;
     border-color: var(--line) !important;
 }
-
 [data-testid="stFileUploader"] *,
 [data-testid="stFileUploaderDropzone"] *,
 [data-testid="stFileUploaderDropzone"] span,
@@ -250,7 +236,6 @@ div[role="option"]:hover * {
     background: transparent !important;
     opacity: 1 !important;
 }
-
 [data-testid="stFileUploaderDropzone"] button,
 [data-testid="stFileUploaderDropzone"] button * {
     background: var(--amber) !important;
@@ -258,42 +243,91 @@ div[role="option"]:hover * {
     border-color: var(--amber) !important;
 }
 
-/* Metrics / dataframe / expander */
-[data-testid="metric-container"],
-[data-testid="stDataFrame"],
-[data-testid="stTable"],
+/* ── Metrics ── */
+[data-testid="metric-container"] {
+    background: #ffffff !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 10px !important;
+    padding: 16px 18px !important;
+    box-shadow: 0 2px 8px rgba(70, 43, 16, 0.045) !important;
+}
+[data-testid="metric-container"] * { color: var(--text) !important; opacity: 1 !important; }
+[data-testid="stMetricValue"],
+[data-testid="stMetricValue"] * { color: var(--title) !important; font-weight: 700 !important; }
+[data-testid="stMetricLabel"],
+[data-testid="stMetricLabel"] * { color: var(--muted) !important; font-size: 0.82rem !important; }
+[data-testid="stMetricDelta"],
+[data-testid="stMetricDelta"] * { color: var(--muted) !important; }
+
+/* ── Expander ── */
 [data-testid="stExpander"] {
     background: #ffffff !important;
-    color: var(--text) !important;
     border: 1px solid var(--line) !important;
-    border-radius: 9px !important;
+    border-radius: 10px !important;
+}
+[data-testid="stExpander"] * { color: var(--text) !important; opacity: 1 !important; }
+
+/* ── Dataframe / table: FORCE LIGHT THEME ── */
+[data-testid="stDataFrame"],
+[data-testid="stDataFrame"] > div,
+[data-testid="stDataFrame"] iframe {
+    background: #ffffff !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
 }
 
-[data-testid="metric-container"] {
-    padding: 14px 15px !important;
-}
-
-[data-testid="metric-container"] *,
-[data-testid="stDataFrame"] *,
-[data-testid="stTable"] *,
-[data-testid="stExpander"] * {
+[data-testid="stTable"],
+[data-testid="stTable"] table {
+    background: #ffffff !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 10px !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    width: 100% !important;
     color: var(--text) !important;
-    opacity: 1 !important;
 }
-
-[data-testid="stMetricValue"],
-[data-testid="stMetricValue"] * {
+[data-testid="stTable"] th {
+    background: var(--panel-soft) !important;
     color: var(--title) !important;
+    font-weight: 650 !important;
+    font-size: 0.83rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+    padding: 10px 14px !important;
+    border-bottom: 1px solid var(--line) !important;
+}
+[data-testid="stTable"] td {
+    background: #ffffff !important;
+    color: var(--text) !important;
+    font-size: 0.9rem !important;
+    padding: 9px 14px !important;
+    border-bottom: 1px solid var(--line) !important;
+}
+[data-testid="stTable"] tr:last-child td { border-bottom: none !important; }
+[data-testid="stTable"] tr:hover td { background: var(--amber-soft) !important; }
+
+/* Alert boxes */
+[data-testid="stAlert"],
+[data-testid="stAlert"] * { color: var(--text) !important; opacity: 1 !important; }
+
+/* Progress bar */
+.stProgress > div > div > div { background: var(--amber) !important; }
+
+/* Material icons fix */
+span.material-symbols-rounded,
+span.material-symbols-outlined,
+span.material-icons,
+span[data-testid="stIconMaterial"] {
+    font-family: "Material Symbols Rounded", "Material Symbols Outlined", "Material Icons" !important;
+    font-weight: normal !important; font-style: normal !important; line-height: 1 !important;
+    letter-spacing: normal !important; text-transform: none !important;
+    white-space: nowrap !important; word-wrap: normal !important;
+    direction: ltr !important; color: inherit !important;
 }
 
-[data-testid="stMetricLabel"],
-[data-testid="stMetricLabel"] *,
-[data-testid="stMetricDelta"],
-[data-testid="stMetricDelta"] * {
-    color: var(--muted) !important;
-}
+/* ── Custom components ── */
 
-/* Custom cards */
 .info-card {
     background: #ffffff !important;
     border: 1px solid var(--line) !important;
@@ -303,55 +337,66 @@ div[role="option"]:hover * {
     margin-bottom: 16px !important;
     min-height: 128px !important;
     box-shadow: 0 3px 10px rgba(70, 43, 16, 0.035) !important;
+    transition: box-shadow 0.15s ease !important;
 }
-
-.info-card h3 {
-    margin-top: 0 !important;
-    margin-bottom: 9px !important;
-    font-size: 1.04rem !important;
-    color: var(--title) !important;
+.info-card:hover {
+    box-shadow: 0 5px 16px rgba(70, 43, 16, 0.07) !important;
 }
-
-.info-card p {
-    color: var(--muted) !important;
-    margin-bottom: 0 !important;
-    line-height: 1.48 !important;
-    font-size: 0.96rem !important;
-}
+.info-card h3 { margin-top: 0 !important; margin-bottom: 9px !important; font-size: 1.04rem !important; color: var(--title) !important; }
+.info-card p { color: var(--muted) !important; margin-bottom: 0 !important; line-height: 1.48 !important; font-size: 0.96rem !important; }
 
 .header-card {
-    background: #ffffff !important;
+    background: linear-gradient(135deg, #ffffff 0%, #fff7ed 100%) !important;
     border: 1px solid var(--line) !important;
     border-left: 5px solid var(--amber) !important;
     border-radius: 12px !important;
-    padding: 22px 24px !important;
-    margin-bottom: 18px !important;
-    box-shadow: 0 3px 12px rgba(70, 43, 16, 0.04) !important;
+    padding: 24px 28px !important;
+    margin-bottom: 20px !important;
+    box-shadow: 0 4px 16px rgba(70, 43, 16, 0.05) !important;
 }
-
 .header-title {
     font-size: 1.75rem !important;
     font-weight: 700 !important;
     color: var(--title) !important;
     margin: 0 0 8px 0 !important;
 }
-
 .header-subtitle {
     font-size: 0.98rem !important;
     color: var(--muted) !important;
     margin: 0 !important;
-    line-height: 1.55 !important;
+    line-height: 1.6 !important;
 }
+
+/* Result banners */
+.result-fraud {
+    background: var(--red-soft) !important;
+    border: 1px solid #fecaca !important;
+    border-left: 5px solid var(--red) !important;
+    border-radius: 10px !important;
+    padding: 16px 20px !important;
+    margin: 12px 0 !important;
+}
+.result-legit {
+    background: var(--green-soft) !important;
+    border: 1px solid #bbf7d0 !important;
+    border-left: 5px solid var(--green) !important;
+    border-radius: 10px !important;
+    padding: 16px 20px !important;
+    margin: 12px 0 !important;
+}
+.result-fraud p, .result-fraud span { color: var(--red) !important; font-weight: 600 !important; }
+.result-legit p, .result-legit span { color: var(--green) !important; font-weight: 600 !important; }
 
 .hash-box {
     background: #fff7ed !important;
     border: 1px solid var(--line) !important;
     border-radius: 6px !important;
-    padding: 9px 10px !important;
+    padding: 10px 12px !important;
     font-family: Consolas, "Courier New", monospace !important;
-    font-size: 13px !important;
+    font-size: 12.5px !important;
     word-break: break-all !important;
     color: var(--title) !important;
+    line-height: 1.5 !important;
 }
 
 .small-muted {
@@ -359,63 +404,20 @@ div[role="option"]:hover * {
     font-size: 0.92rem !important;
 }
 
-[data-testid="stAlert"],
-[data-testid="stAlert"] * {
-    color: var(--text) !important;
-    opacity: 1 !important;
+.section-divider {
+    border: none !important;
+    border-top: 1px solid var(--line) !important;
+    margin: 20px 0 !important;
 }
 
-.stProgress > div > div > div {
-    background: var(--amber) !important;
-}
-
-/* Keep Streamlit / Material icons as icons, not text like keyboard_arrow_right */
-span.material-symbols-rounded,
-span.material-symbols-outlined,
-span.material-icons,
-span[data-testid="stIconMaterial"] {
-    font-family: "Material Symbols Rounded", "Material Symbols Outlined", "Material Icons" !important;
-    font-weight: normal !important;
-    font-style: normal !important;
-    line-height: 1 !important;
-    letter-spacing: normal !important;
-    text-transform: none !important;
-    white-space: nowrap !important;
-    word-wrap: normal !important;
-    direction: ltr !important;
-    color: inherit !important;
-}
-
-/* Sidebar menu: small pill-style options */
-[data-testid="stSidebar"] .stRadio [role="radiogroup"] {
-    gap: 4px !important;
-}
-
-[data-testid="stSidebar"] .stRadio label {
-    width: fit-content !important;
-    min-width: 130px !important;
-    background: transparent !important;
-    border: 1px solid transparent !important;
-    border-radius: 999px !important;
-    padding: 6px 12px !important;
-    margin-bottom: 5px !important;
-    transition: 0.12s ease-in-out !important;
-}
-
-[data-testid="stSidebar"] .stRadio label:hover {
-    background: #fff1d6 !important;
-    border-color: #eadfd1 !important;
-}
-
-[data-testid="stSidebar"] .stRadio label:has(input:checked) {
-    background: #fed7aa !important;
-    border-color: #c56a12 !important;
-    font-weight: 650 !important;
-}
-
-/* hide the default radio circle so it looks more like a menu */
-[data-testid="stSidebar"] .stRadio label > div:first-child {
-    display: none !important;
+/* Stat badge in sidebar */
+.sidebar-stat {
+    background: #ffffff !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 8px !important;
+    padding: 10px 13px !important;
+    margin-bottom: 6px !important;
+    font-size: 0.86rem !important;
 }
 
 </style>
@@ -528,13 +530,10 @@ except Exception:
 
 if "blockchain" not in st.session_state:
     st.session_state.blockchain = Blockchain()
-
 if "total_claims" not in st.session_state:
     st.session_state.total_claims = 0
-
 if "fraud_claims" not in st.session_state:
     st.session_state.fraud_claims = 0
-
 if "sample_type" not in st.session_state:
     st.session_state.sample_type = "normal"
 
@@ -555,11 +554,7 @@ def risk_level(score):
 
 def preprocess_claims(input_df):
     df = input_df.copy()
-
-    df = df.drop(
-        columns=["Provider_ID", "Claim_ID", "Claim_Submission_Date", "Is_Fraud"],
-        errors="ignore"
-    )
+    df = df.drop(columns=["Provider_ID", "Claim_ID", "Claim_Submission_Date", "Is_Fraud"], errors="ignore")
 
     numeric_cols = preprocess_info["numeric_cols"]
     categorical_cols = preprocess_info["categorical_cols"]
@@ -583,12 +578,8 @@ def preprocess_claims(input_df):
     high_claim_threshold = preprocess_info["high_claim_threshold"]
 
     df["claim_to_cost_ratio"] = df["Claim_Amount"] / (df["Approved_Amount"] + 1)
-    df["cost_outlier_flag"] = (
-        df["Claim_Amount"] > claim_q3 + 1.5 * claim_iqr
-    ).astype(int)
-    df["high_claim_frequency"] = (
-        df["Number_of_Claims_Per_Provider_Monthly"] > high_claim_threshold
-    ).astype(int)
+    df["cost_outlier_flag"] = (df["Claim_Amount"] > claim_q3 + 1.5 * claim_iqr).astype(int)
+    df["high_claim_frequency"] = (df["Number_of_Claims_Per_Provider_Monthly"] > high_claim_threshold).astype(int)
 
     df = pd.get_dummies(df)
     df = df.reindex(columns=preprocess_info["feature_columns"], fill_value=0)
@@ -598,9 +589,6 @@ def preprocess_claims(input_df):
 
 def run_prediction(input_df):
     processed_data = preprocess_claims(input_df)
-
-    # XGBoost returns class probabilities through predict_proba().
-    # Column index 1 is the probability of the fraud class.
     if hasattr(model, "predict_proba"):
         scores = model.predict_proba(processed_data)[:, 1]
     else:
@@ -611,24 +599,10 @@ def run_prediction(input_df):
     return scores, decisions, risks
 
 
-def make_claim_dict(
-    patient_age,
-    patient_gender,
-    diagnosis_code,
-    procedure_code,
-    claim_amount,
-    approved_amount,
-    insurance_type,
-    days_between,
-    monthly_claims,
-    provider_specialty,
-    patient_state,
-    claim_status,
-    length_of_stay,
-    visit_type,
-    chronic_condition,
-    prior_visits
-):
+def make_claim_dict(patient_age, patient_gender, diagnosis_code, procedure_code,
+                    claim_amount, approved_amount, insurance_type, days_between,
+                    monthly_claims, provider_specialty, patient_state, claim_status,
+                    length_of_stay, visit_type, chronic_condition, prior_visits):
     return {
         "Patient_Age": patient_age,
         "Patient_Gender": patient_gender,
@@ -650,20 +624,161 @@ def make_claim_dict(
 
 
 def show_block(block):
-    st.write(f"**Block index:** {block.index}")
-    st.write(f"**Timestamp:** {block.timestamp}")
-    st.write(f"**Decision:** {block.decision}")
-    st.write(f"**Fraud score:** {block.fraud_score}")
-    st.write(f"**Source:** {block.source}")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.write(f"**Block index:** {block.index}")
+        st.write(f"**Timestamp:** {block.timestamp}")
+        st.write(f"**Decision:** {block.decision}")
+    with col_b:
+        st.write(f"**Fraud score:** {block.fraud_score}")
+        st.write(f"**Source:** {block.source}")
 
-    st.write("Claim hash")
+    st.write("**Claim hash**")
     st.markdown(f'<div class="hash-box">{block.claim_hash}</div>', unsafe_allow_html=True)
-
-    st.write("Previous hash")
+    st.write("**Previous hash**")
     st.markdown(f'<div class="hash-box">{block.previous_hash}</div>', unsafe_allow_html=True)
-
-    st.write("Block hash")
+    st.write("**Block hash**")
     st.markdown(f'<div class="hash-box">{block.block_hash}</div>', unsafe_allow_html=True)
+
+
+# ----------------------------------------------------------------
+# FIX 1: ledger_html now includes its own self-contained <style>
+# so it renders correctly inside components.v1.html() iframe
+# ----------------------------------------------------------------
+def ledger_html():
+    rows_html = ""
+    for block in bc.chain:
+        if block.decision == "GENESIS":
+            badge = '<span class="badge-genesis">GENESIS</span>'
+        elif block.decision == "Fraudulent":
+            badge = '<span class="badge-fraud">Fraudulent</span>'
+        else:
+            badge = '<span class="badge-legit">Legitimate</span>'
+
+        short_claim = block.claim_hash[:18] + "…" if len(block.claim_hash) > 18 else block.claim_hash
+        short_prev  = block.previous_hash[:18] + "…" if len(block.previous_hash) > 18 else block.previous_hash
+        short_block = block.block_hash[:18] + "…" if len(block.block_hash) > 18 else block.block_hash
+
+        rows_html += f"""
+        <tr>
+            <td>{block.index}</td>
+            <td>{block.timestamp}</td>
+            <td>{badge}</td>
+            <td>{block.fraud_score}</td>
+            <td>{block.source}</td>
+            <td class="mono" title="{block.claim_hash}">{short_claim}</td>
+            <td class="mono" title="{block.previous_hash}">{short_prev}</td>
+            <td class="mono" title="{block.block_hash}">{short_block}</td>
+        </tr>
+        """
+
+    # Self-contained HTML with inline CSS — required for components.v1.html()
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        body {{
+            font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            background: #fffaf3;
+            padding: 4px;
+        }}
+        .ledger-wrap {{
+            overflow-x: auto;
+            border-radius: 10px;
+            border: 1px solid #eadfd1;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.86rem;
+            background: #ffffff;
+        }}
+        thead tr {{
+            background: #fff7ed;
+        }}
+        th {{
+            color: #1f160f;
+            font-weight: 700;
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 10px 14px;
+            border-bottom: 1px solid #eadfd1;
+            text-align: left;
+            white-space: nowrap;
+        }}
+        td {{
+            color: #2b2118;
+            padding: 9px 14px;
+            border-bottom: 1px solid #f3ede5;
+            vertical-align: middle;
+            background: #ffffff;
+            white-space: nowrap;
+        }}
+        tbody tr:last-child td {{ border-bottom: none; }}
+        tbody tr:hover td {{ background: #fff1d6; }}
+        .badge-fraud {{
+            display: inline-block;
+            background: #fef2f2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+            border-radius: 999px;
+            padding: 2px 9px;
+            font-size: 0.76rem;
+            font-weight: 600;
+        }}
+        .badge-legit {{
+            display: inline-block;
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+            border-radius: 999px;
+            padding: 2px 9px;
+            font-size: 0.76rem;
+            font-weight: 600;
+        }}
+        .badge-genesis {{
+            display: inline-block;
+            background: #fff1d6;
+            color: #9a4f0e;
+            border: 1px solid #fed7aa;
+            border-radius: 999px;
+            padding: 2px 9px;
+            font-size: 0.76rem;
+            font-weight: 600;
+        }}
+        .mono {{
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 0.74rem;
+            color: #6f6258;
+        }}
+    </style>
+    </head>
+    <body>
+        <div class="ledger-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Index</th>
+                        <th>Timestamp</th>
+                        <th>Decision</th>
+                        <th>Fraud Score</th>
+                        <th>Source</th>
+                        <th>Claim Hash</th>
+                        <th>Previous Hash</th>
+                        <th>Block Hash</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                </tbody>
+            </table>
+        </div>
+    </body>
+    </html>
+    """
 
 
 def ledger_dataframe():
@@ -682,33 +797,111 @@ def ledger_dataframe():
     return pd.DataFrame(rows)
 
 
+# ----------------------------------------------------------------
+# FIX 2: helper to render a pandas DataFrame as a styled HTML
+# table via components.v1.html() — avoids the blank iframe bug
+# ----------------------------------------------------------------
+def dataframe_html(df, max_rows=None):
+    display_df = df.head(max_rows) if max_rows else df
+
+    header_cells = "".join(f"<th>{col}</th>" for col in display_df.columns)
+
+    body_rows = ""
+    for _, row in display_df.iterrows():
+        cells = "".join(f"<td>{val}</td>" for val in row)
+        body_rows += f"<tr>{cells}</tr>"
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        body {{
+            font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            background: #fffaf3;
+            padding: 4px;
+        }}
+        .wrap {{
+            overflow-x: auto;
+            border-radius: 10px;
+            border: 1px solid #eadfd1;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.86rem;
+            background: #ffffff;
+        }}
+        thead tr {{ background: #fff7ed; }}
+        th {{
+            color: #1f160f;
+            font-weight: 700;
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 10px 14px;
+            border-bottom: 1px solid #eadfd1;
+            text-align: left;
+            white-space: nowrap;
+        }}
+        td {{
+            color: #2b2118;
+            padding: 9px 14px;
+            border-bottom: 1px solid #f3ede5;
+            background: #ffffff;
+            vertical-align: middle;
+            white-space: nowrap;
+        }}
+        tbody tr:last-child td {{ border-bottom: none; }}
+        tbody tr:hover td {{ background: #fff1d6; }}
+    </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <table>
+                <thead><tr>{header_cells}</tr></thead>
+                <tbody>{body_rows}</tbody>
+            </table>
+        </div>
+    </body>
+    </html>
+    """
+
+
+def estimate_table_height(n_rows, row_px=38, header_px=42, padding=16, max_px=600):
+    """Compute a sensible iframe height for a given number of rows."""
+    return min(header_px + n_rows * row_px + padding, max_px)
+
+
 # ------------------------------------------------------------
 # Sidebar
 # ------------------------------------------------------------
 
-st.sidebar.title("Project Menu")
+st.sidebar.title("🏥 MediGuard")
 st.sidebar.caption("Healthcare claim review prototype")
 
 page = st.sidebar.radio(
     "Go to",
-    [
-        "Home",
-        "Single Claim",
-        "Bulk Upload",
-        "OCR Scanner",
-        "Blockchain",
-        "Model Results",
-        "About"
-    ]
+    ["Home", "Single Claim", "Bulk Upload", "OCR Scanner", "Blockchain", "Model Results", "About"]
 )
 
 st.sidebar.divider()
 valid, _ = bc.verify_chain()
-st.sidebar.write("**Current session**")
-st.sidebar.write(f"Claims processed: {st.session_state.total_claims}")
-st.sidebar.write(f"Fraud flagged: {st.session_state.fraud_claims}")
-st.sidebar.write(f"Ledger blocks: {len(bc.chain)}")
-st.sidebar.write(f"Ledger status: {'Valid' if valid else 'Invalid'}")
+total = st.session_state.total_claims
+fraud = st.session_state.fraud_claims
+rate = (fraud / total * 100) if total else 0
+
+st.sidebar.write("**Session stats**")
+st.sidebar.markdown(f"""
+<div style="font-size:0.87rem; line-height:2; color:#2b2118;">
+🔢 Claims processed: <b>{total}</b><br>
+🚨 Fraud flagged: <b>{fraud}</b><br>
+📊 Fraud rate: <b>{rate:.1f}%</b><br>
+🔗 Ledger blocks: <b>{len(bc.chain)}</b><br>
+✅ Ledger status: <b>{'Valid' if valid else '⚠️ Invalid'}</b>
+</div>
+""", unsafe_allow_html=True)
 
 
 # ------------------------------------------------------------
@@ -719,45 +912,35 @@ if page == "Home":
 
     st.markdown("""
     <div class="header-card">
-        <p class="header-title">Healthcare Fraud Detection System</p>
+        <p class="header-title">🏥 Healthcare Fraud Detection System</p>
         <p class="header-subtitle">
         A final year project prototype for reviewing healthcare claims, generating
-        fraud predictions, and keeping audit records for verification.
+        fraud predictions, and keeping immutable audit records on a blockchain ledger.
         </p>
     </div>
     """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
-
     with col1:
         st.markdown("""
         <div class="info-card">
-        <h3>Single Claim</h3>
-        <p>Enter one claim record and view the model prediction.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
+        <h3>🔍 Single Claim</h3>
+        <p>Enter one claim record and view the model prediction with full blockchain audit logging.</p>
+        </div>""", unsafe_allow_html=True)
     with col2:
         st.markdown("""
         <div class="info-card">
-        <h3>Bulk Upload</h3>
-        <p>Upload a CSV file and screen multiple claims together.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
+        <h3>📂 Bulk Upload</h3>
+        <p>Upload a CSV file and screen multiple claims together. Download results as a report.</p>
+        </div>""", unsafe_allow_html=True)
     with col3:
         st.markdown("""
         <div class="info-card">
-        <h3>Blockchain Ledger</h3>
-        <p>Store prediction records and verify hash integrity.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        <h3>⛓️ Blockchain Ledger</h3>
+        <p>Store prediction records and verify SHA-256 hash chain integrity.</p>
+        </div>""", unsafe_allow_html=True)
 
     st.subheader("Session overview")
-
-    total = st.session_state.total_claims
-    fraud = st.session_state.fraud_claims
-    rate = (fraud / total * 100) if total else 0
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Claims Processed", total)
@@ -769,12 +952,12 @@ if page == "Home":
 
     st.markdown("""
     <div class="info-card">
-        <h3>Suggested demo flow</h3>
+        <h3>💡 Suggested demo flow</h3>
         <p>
         1. Run one normal and one suspicious claim in <b>Single Claim</b>.<br>
-        2. Upload a CSV in <b>Bulk Upload</b>.<br>
-        3. Show the stored records in <b>Blockchain</b>.<br>
-        4. Open <b>Model Results</b> to show evaluation evidence.
+        2. Upload a CSV in <b>Bulk Upload</b> to screen multiple records.<br>
+        3. Open <b>Blockchain</b> to show the stored audit chain and verify integrity.<br>
+        4. Open <b>Model Results</b> to present evaluation evidence for the selected XGBoost model.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -790,64 +973,42 @@ elif page == "Single Claim":
     st.write("Fill in a claim record and run the final selected XGBoost fraud detection model.")
 
     with st.container(border=True):
-        st.write("Example values")
+        st.write("**Quick examples**")
         c1, c2 = st.columns(2)
-        if c1.button("Use normal example"):
+        if c1.button("✅ Use normal example"):
             st.session_state.sample_type = "normal"
             st.rerun()
-        if c2.button("Use suspicious example"):
+        if c2.button("🚨 Use suspicious example"):
             st.session_state.sample_type = "suspicious"
             st.rerun()
 
     if st.session_state.sample_type == "suspicious":
         default = {
-            "claim_id": "CLM999",
-            "provider_id": "PRV888",
-            "patient_age": 67,
-            "patient_gender": "Male",
-            "claim_amount": 18000.0,
-            "approved_amount": 5000.0,
-            "insurance_type": "Private",
-            "claim_status": "Pending",
-            "diagnosis_code": "I25.10",
-            "procedure_code": "99285",
-            "provider_specialty": "Cardiology",
-            "patient_state": "CA",
-            "days_between": 1,
-            "monthly_claims": 45,
-            "length_of_stay": 12,
-            "visit_type": "Emergency",
-            "chronic_condition": 1,
-            "prior_visits": 8
+            "claim_id": "CLM999", "provider_id": "PRV888",
+            "patient_age": 67, "patient_gender": "Male",
+            "claim_amount": 18000.0, "approved_amount": 5000.0,
+            "insurance_type": "Private", "claim_status": "Pending",
+            "diagnosis_code": "I25.10", "procedure_code": "99285",
+            "provider_specialty": "Cardiology", "patient_state": "CA",
+            "days_between": 1, "monthly_claims": 45, "length_of_stay": 12,
+            "visit_type": "Emergency", "chronic_condition": 1, "prior_visits": 8
         }
     else:
         default = {
-            "claim_id": "CLM001",
-            "provider_id": "PRV001",
-            "patient_age": 45,
-            "patient_gender": "Female",
-            "claim_amount": 4200.0,
-            "approved_amount": 3900.0,
-            "insurance_type": "Government",
-            "claim_status": "Approved",
-            "diagnosis_code": "E11.9",
-            "procedure_code": "36415",
-            "provider_specialty": "General Practice",
-            "patient_state": "CA",
-            "days_between": 7,
-            "monthly_claims": 8,
-            "length_of_stay": 2,
-            "visit_type": "Outpatient",
-            "chronic_condition": 0,
-            "prior_visits": 2
+            "claim_id": "CLM001", "provider_id": "PRV001",
+            "patient_age": 45, "patient_gender": "Female",
+            "claim_amount": 4200.0, "approved_amount": 3900.0,
+            "insurance_type": "Government", "claim_status": "Approved",
+            "diagnosis_code": "E11.9", "procedure_code": "36415",
+            "provider_specialty": "General Practice", "patient_state": "CA",
+            "days_between": 7, "monthly_claims": 8, "length_of_stay": 2,
+            "visit_type": "Outpatient", "chronic_condition": 0, "prior_visits": 2
         }
 
     with st.form("claim_form"):
-
         st.subheader("Claim details")
 
         col1, col2, col3 = st.columns(3)
-
         with col1:
             claim_id = st.text_input("Claim ID", value=default["claim_id"])
             provider_id = st.text_input("Provider ID", value=default["provider_id"])
@@ -857,8 +1018,10 @@ elif page == "Single Claim":
         with col2:
             claim_amount = st.number_input("Claim Amount", min_value=0.0, value=default["claim_amount"])
             approved_amount = st.number_input("Approved Amount", min_value=0.0, value=default["approved_amount"])
-            insurance_type = st.selectbox("Insurance Type", ["Private", "Government", "Medicaid", "Self-Pay"], index=["Private", "Government", "Medicaid", "Self-Pay"].index(default["insurance_type"]))
-            claim_status = st.selectbox("Claim Status", ["Approved", "Pending", "Rejected"], index=["Approved", "Pending", "Rejected"].index(default["claim_status"]))
+            insurance_type = st.selectbox("Insurance Type", ["Private", "Government", "Medicaid", "Self-Pay"],
+                                          index=["Private", "Government", "Medicaid", "Self-Pay"].index(default["insurance_type"]))
+            claim_status = st.selectbox("Claim Status", ["Approved", "Pending", "Rejected"],
+                                        index=["Approved", "Pending", "Rejected"].index(default["claim_status"]))
 
         with col3:
             diagnosis_code = st.text_input("Diagnosis Code", value=default["diagnosis_code"])
@@ -871,64 +1034,43 @@ elif page == "Single Claim":
             patient_state = st.text_input("Patient State", value=default["patient_state"])
 
         col4, col5, col6 = st.columns(3)
-
         with col4:
             days_between = st.number_input("Days Between Service and Claim", min_value=0, value=default["days_between"])
-
         with col5:
             monthly_claims = st.number_input("Claims Per Provider Monthly", min_value=0, value=default["monthly_claims"])
-
         with col6:
             length_of_stay = st.number_input("Length of Stay", min_value=0, value=default["length_of_stay"])
 
         col7, col8, col9 = st.columns(3)
-
         with col7:
-            visit_type = st.selectbox("Visit Type", ["Inpatient", "Outpatient", "Emergency"], index=["Inpatient", "Outpatient", "Emergency"].index(default["visit_type"]))
-
+            visit_type = st.selectbox("Visit Type", ["Inpatient", "Outpatient", "Emergency"],
+                                      index=["Inpatient", "Outpatient", "Emergency"].index(default["visit_type"]))
         with col8:
-            chronic_condition = st.selectbox("Chronic Condition", [0, 1], index=[0, 1].index(default["chronic_condition"]), format_func=lambda x: "Yes" if x == 1 else "No")
-
+            chronic_condition = st.selectbox("Chronic Condition", [0, 1],
+                                             index=[0, 1].index(default["chronic_condition"]),
+                                             format_func=lambda x: "Yes" if x == 1 else "No")
         with col9:
             prior_visits = st.number_input("Prior Visits in 12 Months", min_value=0, value=default["prior_visits"])
 
-        submitted = st.form_submit_button("Run Prediction")
+        submitted = st.form_submit_button("🔍 Run Prediction")
 
     if submitted:
         claim_data = make_claim_dict(
-            patient_age,
-            patient_gender,
-            diagnosis_code,
-            procedure_code,
-            claim_amount,
-            approved_amount,
-            insurance_type,
-            days_between,
-            monthly_claims,
-            provider_specialty,
-            patient_state,
-            claim_status,
-            length_of_stay,
-            visit_type,
-            chronic_condition,
-            prior_visits
+            patient_age, patient_gender, diagnosis_code, procedure_code,
+            claim_amount, approved_amount, insurance_type, days_between,
+            monthly_claims, provider_specialty, patient_state, claim_status,
+            length_of_stay, visit_type, chronic_condition, prior_visits
         )
 
         scores, decisions, risks = run_prediction(pd.DataFrame([claim_data]))
-
         score = float(scores[0])
         decision = decisions[0]
         risk = risks[0]
 
         block = bc.add_record(
-            {
-                "Claim_ID": claim_id,
-                "Provider_ID": provider_id,
-                "Fraud_Score": round(score, 4),
-                "Decision": decision
-            },
-            score,
-            source="Single Claim"
+            {"Claim_ID": claim_id, "Provider_ID": provider_id,
+             "Fraud_Score": round(score, 4), "Decision": decision},
+            score, source="Single Claim"
         )
 
         st.session_state.total_claims += 1
@@ -938,6 +1080,11 @@ elif page == "Single Claim":
         st.divider()
         st.subheader("Prediction result")
 
+        if decision == "Fraudulent":
+            st.markdown(f'<div class="result-fraud"><p>🚨 FRAUDULENT — This claim has been flagged. Fraud probability: {score * 100:.2f}% · Risk level: {risk}</p></div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="result-legit"><p>✅ LEGITIMATE — This claim appears valid. Fraud probability: {score * 100:.2f}% · Risk level: {risk}</p></div>', unsafe_allow_html=True)
+
         r1, r2, r3 = st.columns(3)
         r1.metric("Fraud Probability", f"{score * 100:.2f}%")
         r2.metric("Decision", decision)
@@ -945,7 +1092,7 @@ elif page == "Single Claim":
 
         st.progress(min(score, 1.0))
 
-        with st.expander("Blockchain record created", expanded=True):
+        with st.expander("⛓️ Blockchain record created", expanded=True):
             show_block(block)
 
 
@@ -964,52 +1111,54 @@ elif page == "Bulk Upload":
         raw_df = pd.read_csv(uploaded_file)
 
         st.subheader("Uploaded data preview")
-        st.dataframe(raw_df.head(), use_container_width=True)
 
-        if st.button("Run Bulk Prediction"):
+        # FIX: Use components.v1.html() with self-contained styled table
+        # instead of st.dataframe() which renders blank due to theme conflicts
+        preview_rows = min(5, len(raw_df))
+        preview_height = estimate_table_height(preview_rows)
+        components.html(dataframe_html(raw_df, max_rows=5), height=preview_height, scrolling=False)
+
+        if st.button("▶️ Run Bulk Prediction"):
             scores, decisions, risks = run_prediction(raw_df)
 
             results_df = raw_df.copy()
             results_df["Fraud_Probability"] = [round(float(score), 4) for score in scores]
-            results_df["Fraud_Probability_Percentage"] = [f"{float(score) * 100:.2f}%" for score in scores]
+            results_df["Fraud_Probability_%"] = [f"{float(score) * 100:.2f}%" for score in scores]
             results_df["Decision"] = decisions
             results_df["Risk_Level"] = risks
 
             for i, score in enumerate(scores):
                 claim_id = str(raw_df["Claim_ID"].iloc[i]) if "Claim_ID" in raw_df.columns else f"ROW_{i}"
                 provider_id = str(raw_df["Provider_ID"].iloc[i]) if "Provider_ID" in raw_df.columns else "UNKNOWN"
-
                 bc.add_record(
-                    {
-                        "Claim_ID": claim_id,
-                        "Provider_ID": provider_id,
-                        "Fraud_Score": round(float(score), 4),
-                        "Decision": decisions[i]
-                    },
-                    float(score),
-                    source="Bulk CSV"
+                    {"Claim_ID": claim_id, "Provider_ID": provider_id,
+                     "Fraud_Score": round(float(score), 4), "Decision": decisions[i]},
+                    float(score), source="Bulk CSV"
                 )
 
-            total = len(results_df)
+            total_b = len(results_df)
             fraud_count = decisions.count("Fraudulent")
             legitimate_count = decisions.count("Legitimate")
 
-            st.session_state.total_claims += total
+            st.session_state.total_claims += total_b
             st.session_state.fraud_claims += fraud_count
 
             st.divider()
             st.subheader("Bulk prediction summary")
 
             c1, c2, c3 = st.columns(3)
-            c1.metric("Total Claims", total)
+            c1.metric("Total Claims", total_b)
             c2.metric("Fraudulent Claims", fraud_count)
             c3.metric("Legitimate Claims", legitimate_count)
 
             st.subheader("Prediction results")
-            st.dataframe(results_df, use_container_width=True)
+
+            # FIX: Use components.v1.html() for results table too
+            results_height = estimate_table_height(len(results_df))
+            components.html(dataframe_html(results_df), height=results_height, scrolling=True)
 
             st.download_button(
-                label="Download Prediction Results",
+                label="⬇️ Download Prediction Results",
                 data=results_df.to_csv(index=False),
                 file_name="fraud_prediction_results.csv",
                 mime="text/csv"
@@ -1023,9 +1172,8 @@ elif page == "Bulk Upload":
 elif page == "OCR Scanner":
 
     st.title("OCR Document Scanner")
-
     st.write(
-        "This page loads the optional OCR module if `document_scanner.py` is available in the project folder. The reviewed fields are passed to the final selected XGBoost model."
+        "This page loads the optional OCR module if `document_scanner.py` is available in the project folder."
     )
 
     try:
@@ -1033,9 +1181,7 @@ elif page == "OCR Scanner":
         render_document_scanner(model, scaler, bc)
     except ImportError:
         st.warning("document_scanner.py was not found in this folder.")
-        st.info(
-            "For the demo, keep this page only if the OCR scanner file is completed and tested."
-        )
+        st.info("For the demo, keep this page only if the OCR scanner file is completed and tested.")
     except Exception as error:
         st.error(f"OCR module error: {error}")
 
@@ -1047,22 +1193,30 @@ elif page == "OCR Scanner":
 elif page == "Blockchain":
 
     st.title("Blockchain Records")
-
-    st.write(
-        "This page shows the blockchain-style records created during the current session."
-    )
+    st.write("Records created during the current session, stored as a SHA-256 linked hash chain.")
 
     is_valid, message = bc.verify_chain()
     if is_valid:
-        st.success(f"Integrity check passed: {message}")
+        st.success(f"✅ Integrity check passed — {message}")
     else:
-        st.error(f"Integrity check failed: {message}")
+        st.error(f"❌ Integrity check failed — {message}")
 
     st.subheader("Ledger table")
-    st.dataframe(ledger_dataframe(), use_container_width=True)
+
+    # FIX: Use components.v1.html() with self-contained styled HTML
+    # instead of st.markdown(unsafe_allow_html=True) which was rendering raw HTML source
+    ledger_height = estimate_table_height(len(bc.chain), max_px=500)
+    components.html(ledger_html(), height=ledger_height, scrolling=True)
+
+    st.download_button(
+        label="⬇️ Download Ledger CSV",
+        data=ledger_dataframe().to_csv(index=False),
+        file_name="blockchain_ledger.csv",
+        mime="text/csv"
+    )
 
     st.divider()
-    st.subheader("View a block")
+    st.subheader("Inspect a block")
 
     block_index = st.number_input(
         "Block index",
@@ -1072,17 +1226,18 @@ elif page == "Blockchain":
     )
 
     selected_block = bc.chain[block_index]
-    show_block(selected_block)
 
-    if st.button("Verify Selected Block"):
+    with st.container(border=True):
+        show_block(selected_block)
+
+    if st.button("🔍 Verify Selected Block"):
         recalculated_hash = selected_block.calculate_hash()
-
         if recalculated_hash == selected_block.block_hash:
-            st.success("Selected block is valid. The recalculated hash matches the stored hash.")
+            st.success("✅ Block is valid. The recalculated hash matches the stored hash.")
         else:
-            st.error("Selected block is invalid. The recalculated hash does not match the stored hash.")
+            st.error("❌ Block is invalid. The recalculated hash does not match the stored hash.")
 
-        st.write("Recalculated hash")
+        st.write("**Recalculated hash**")
         st.markdown(f'<div class="hash-box">{recalculated_hash}</div>', unsafe_allow_html=True)
 
 
@@ -1093,32 +1248,30 @@ elif page == "Blockchain":
 elif page == "Model Results":
 
     st.title("Model Results")
-
-    st.write("This page displays evaluation outputs generated during model training. XGBoost is used as the final selected model because it achieved the strongest overall performance.")
+    st.write("Evaluation outputs generated during model training. XGBoost is the final selected model based on overall performance.")
 
     try:
         summary = pd.read_csv("full_model_summary.csv")
         st.subheader("Model comparison")
-        st.dataframe(summary, use_container_width=True)
+        # FIX: Use components.v1.html() for the model summary table as well
+        summary_height = estimate_table_height(len(summary))
+        components.html(dataframe_html(summary), height=summary_height, scrolling=False)
     except FileNotFoundError:
         st.info("full_model_summary.csv not found. Run train_ann_fixed.py first.")
 
     st.divider()
 
     col1, col2, col3 = st.columns(3)
-
     with col1:
         try:
             st.image("confusion_matrix_XGBoost.png", caption="XGBoost Confusion Matrix", use_container_width=True)
         except Exception:
             st.info("confusion_matrix_XGBoost.png not found.")
-
     with col2:
         try:
             st.image("model_comparison.png", caption="Model Comparison", use_container_width=True)
         except Exception:
             st.info("model_comparison.png not found.")
-
     with col3:
         try:
             st.image("roc_curve_comparison.png", caption="ROC Curve Comparison", use_container_width=True)
@@ -1134,28 +1287,36 @@ elif page == "About":
 
     st.title("About This Prototype")
 
-    st.write("""
-    This system is developed as a final year project prototype for healthcare fraud detection.
-    It uses an XGBoost machine learning model as the final selected classifier to
-    classify healthcare insurance claims as legitimate or potentially fraudulent.
-    The ANN model is retained as a deep learning comparison model in the evaluation.
-    """)
+    st.markdown("""
+    <div class="info-card">
+        <h3>🏥 MediGuard — Healthcare Fraud Detection System</h3>
+        <p>
+        This system is developed as a final year project prototype. It uses an XGBoost machine
+        learning model as the final selected classifier to classify healthcare insurance claims
+        as legitimate or potentially fraudulent. The ANN model is retained as a deep learning
+        comparison model in the evaluation.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.subheader("Main functions")
+    col1, col2 = st.columns(2)
 
-    st.write("""
-    - Single claim prediction
-    - Bulk CSV prediction
-    - OCR-assisted document scanning
-    - Model performance viewing
-    - Blockchain-style record storage
-    - Hash-based integrity verification
-    """)
+    with col1:
+        st.subheader("Main functions")
+        st.write("""
+        - Single claim prediction with result banners
+        - Bulk CSV prediction with downloadable report
+        - OCR-assisted document scanning
+        - Model performance comparison and charts
+        - Blockchain-style audit record storage
+        - SHA-256 hash-based integrity verification
+        """)
 
-    st.subheader("Limitations")
-
-    st.write("""
-    The system is not connected to real hospital or insurance databases. The blockchain
-    component is a prototype simulation that demonstrates hashing, block linking, and
-    tamper-evident record keeping. It is not a deployed distributed blockchain network.
-    """)
+    with col2:
+        st.subheader("Limitations")
+        st.write("""
+        The system is not connected to real hospital or insurance databases.
+        The blockchain component is a prototype simulation demonstrating
+        hashing, block linking, and tamper-evident record keeping.
+        It is not a deployed distributed blockchain network.
+        """)
