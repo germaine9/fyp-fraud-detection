@@ -1,14 +1,13 @@
-# app_clean.py
-# Streamlit FYP prototype
-# Run with: streamlit run app_clean.py
+# app_polished.py
+# Streamlit FYP prototype — polished final version
+# Run with: streamlit run app_polished.py
 
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 import joblib
-import hashlib
-import json
-from datetime import datetime, timezone
+import html
+from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -420,107 +419,198 @@ span[data-testid="stIconMaterial"] {
     font-size: 0.86rem !important;
 }
 
+
+/* ── Home-page visual upgrade ── */
+.hero-wrap {
+    position: relative;
+    background:
+        radial-gradient(circle at top right, rgba(197, 106, 18, 0.18), transparent 32%),
+        linear-gradient(135deg, #ffffff 0%, #fff7ed 58%, #fff1d6 100%);
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--amber);
+    border-radius: 18px;
+    padding: 28px 30px;
+    margin-bottom: 22px;
+    box-shadow: 0 8px 28px rgba(70, 43, 16, 0.08);
+}
+.hero-kicker {
+    display: inline-block;
+    color: var(--amber-dark) !important;
+    background: #fff1d6;
+    border: 1px solid #fed7aa;
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+.hero-title {
+    color: var(--title) !important;
+    font-size: 2.05rem !important;
+    line-height: 1.18 !important;
+    font-weight: 760 !important;
+    letter-spacing: -0.035em !important;
+    margin: 0 0 10px 0 !important;
+}
+.hero-subtitle {
+    color: var(--muted) !important;
+    font-size: 1.02rem !important;
+    line-height: 1.62 !important;
+    max-width: 820px;
+    margin: 0 0 16px 0 !important;
+}
+.hero-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+.hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.76);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--text) !important;
+    padding: 7px 11px;
+    font-size: 0.84rem;
+    font-weight: 600;
+}
+
+.module-card {
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    padding: 18px 18px 16px 18px;
+    min-height: 168px;
+    box-shadow: 0 4px 14px rgba(70, 43, 16, 0.045);
+    transition: all 0.16s ease;
+    margin-bottom: 8px;
+}
+.module-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(70, 43, 16, 0.085);
+    border-color: #d8b894;
+}
+.module-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    background: #fff1d6;
+    border: 1px solid #fed7aa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.32rem;
+    margin-bottom: 12px;
+}
+.module-title {
+    color: var(--title) !important;
+    font-size: 1.04rem !important;
+    font-weight: 720 !important;
+    margin: 0 0 7px 0 !important;
+}
+.module-text {
+    color: var(--muted) !important;
+    font-size: 0.92rem !important;
+    line-height: 1.48 !important;
+    margin: 0 !important;
+}
+.demo-flow {
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    padding: 18px 20px;
+    box-shadow: 0 4px 14px rgba(70, 43, 16, 0.04);
+}
+.demo-flow h3 {
+    margin-top: 0 !important;
+}
+.demo-step {
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+    margin: 9px 0;
+}
+.demo-num {
+    min-width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: #fff1d6;
+    border: 1px solid #fed7aa;
+    color: var(--amber-dark);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 750;
+    font-size: 0.82rem;
+}
+.demo-step span:last-child {
+    color: var(--muted);
+    line-height: 1.45;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 
 # ------------------------------------------------------------
-# Blockchain simulation
+# ------------------------------------------------------------
+# Import final blockchain implementation
 # ------------------------------------------------------------
 
-class Block:
-    def __init__(self, index, claim_hash, fraud_score, decision, previous_hash, source="Manual"):
-        self.index = index
-        self.claim_hash = claim_hash
-        self.fraud_score = round(float(fraud_score), 4)
-        self.decision = decision
-        self.source = source
-        self.timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-        self.previous_hash = previous_hash
-        self.block_hash = self.calculate_hash()
-
-    def calculate_hash(self):
-        block_data = {
-            "index": self.index,
-            "claim_hash": self.claim_hash,
-            "fraud_score": self.fraud_score,
-            "decision": self.decision,
-            "source": self.source,
-            "timestamp": self.timestamp,
-            "previous_hash": self.previous_hash
-        }
-        block_string = json.dumps(block_data, sort_keys=True)
-        return hashlib.sha256(block_string.encode()).hexdigest()
+try:
+    from blockchain import Blockchain, CHAIN_FILE, MODEL_VERSION
+except Exception as error:
+    st.error(
+        "Could not import blockchain.py. Please make sure blockchain.py is in the same folder as this app. "
+        f"Error: {error}"
+    )
+    st.stop()
 
 
-class Blockchain:
-    def __init__(self):
-        self.chain = []
-        self.create_genesis_block()
-
-    def create_genesis_block(self):
-        self.chain.append(
-            Block(
-                index=0,
-                claim_hash="GENESIS_BLOCK",
-                fraud_score=0.0,
-                decision="GENESIS",
-                previous_hash="0",
-                source="System"
-            )
-        )
-
-    def get_latest_block(self):
-        return self.chain[-1]
-
-    def add_record(self, claim_data, fraud_score, source="Manual"):
-        claim_string = json.dumps(claim_data, sort_keys=True)
-        claim_hash = hashlib.sha256(claim_string.encode()).hexdigest()
-        decision = "Fraudulent" if fraud_score >= 0.5 else "Legitimate"
-
-        block = Block(
-            index=len(self.chain),
-            claim_hash=claim_hash,
-            fraud_score=fraud_score,
-            decision=decision,
-            previous_hash=self.get_latest_block().block_hash,
-            source=source
-        )
-
-        self.chain.append(block)
-        return block
-
-    def verify_chain(self):
-        for i in range(1, len(self.chain)):
-            current_block = self.chain[i]
-            previous_block = self.chain[i - 1]
-
-            if current_block.previous_hash != previous_block.block_hash:
-                return False, f"Previous hash mismatch at block {i}"
-
-            if current_block.calculate_hash() != current_block.block_hash:
-                return False, f"Block hash mismatch at block {i}"
-
-        return True, "All stored blocks are valid"
-
-
-# ------------------------------------------------------------
 # Load model files
 # ------------------------------------------------------------
 
 @st.cache_resource
 def load_resources():
     baseline_models = joblib.load("baseline_models.pkl")
+
+    if not isinstance(baseline_models, dict):
+        raise TypeError("baseline_models.pkl should contain a dictionary of trained models.")
+
+    if "XGBoost" not in baseline_models:
+        raise KeyError("baseline_models.pkl does not contain the key 'XGBoost'.")
+
     model = baseline_models["XGBoost"]
     scaler = joblib.load("scaler.pkl")
     preprocess_info = joblib.load("preprocess_info.pkl")
+
+    required_keys = [
+        "numeric_cols",
+        "categorical_cols",
+        "numeric_means",
+        "categorical_modes",
+        "claim_q3",
+        "claim_iqr",
+        "high_claim_threshold",
+        "feature_columns",
+    ]
+    missing_keys = [key for key in required_keys if key not in preprocess_info]
+    if missing_keys:
+        raise KeyError(f"preprocess_info.pkl is missing required keys: {missing_keys}")
+
     return model, scaler, preprocess_info
 
 
 try:
     model, scaler, preprocess_info = load_resources()
-except Exception:
-    st.error("Required model files are missing. Please run the training scripts first to generate baseline_models.pkl, scaler.pkl, and preprocess_info.pkl.")
+except Exception as error:
+    st.error("Required model files are missing or invalid. Please run the training scripts first to generate baseline_models.pkl, scaler.pkl, and preprocess_info.pkl.")
+    st.exception(error)
     st.stop()
 
 
@@ -528,8 +618,13 @@ except Exception:
 # Session state
 # ------------------------------------------------------------
 
-if "blockchain" not in st.session_state:
-    st.session_state.blockchain = Blockchain()
+# Replace old/simple in-memory blockchain objects if they exist from a previous app version.
+if (
+    "blockchain" not in st.session_state
+    or not hasattr(st.session_state.blockchain, "verify_integrity")
+    or not hasattr(st.session_state.blockchain, "add_record")
+):
+    st.session_state.blockchain = Blockchain(chain_file=CHAIN_FILE)
 if "total_claims" not in st.session_state:
     st.session_state.total_claims = 0
 if "fraud_claims" not in st.session_state:
@@ -543,6 +638,48 @@ bc = st.session_state.blockchain
 # ------------------------------------------------------------
 # Helper functions
 # ------------------------------------------------------------
+
+def safe_text(value) -> str:
+    """Escape values before injecting them into custom HTML."""
+    return html.escape(str(value))
+
+
+def short_hash(value, length=18) -> str:
+    value = str(value)
+    return value[:length] + "…" if len(value) > length else value
+
+
+def get_block_hash(block) -> str:
+    """Support both blockchain.py blocks (.hash) and older app blocks (.block_hash)."""
+    return getattr(block, "hash", getattr(block, "block_hash", "N/A"))
+
+
+def compute_block_hash(block) -> str:
+    """Recalculate block hash using whichever method the block provides."""
+    if hasattr(block, "compute_hash"):
+        return block.compute_hash()
+    if hasattr(block, "calculate_hash"):
+        return block.calculate_hash()
+    return "N/A"
+
+
+def verify_blockchain(blockchain):
+    """Use blockchain.py integrity verification, with fallback for old app objects."""
+    if hasattr(blockchain, "verify_integrity"):
+        return blockchain.verify_integrity()
+    if hasattr(blockchain, "verify_chain"):
+        return blockchain.verify_chain()
+    return False, "Blockchain object does not provide an integrity verification method."
+
+
+def ledger_counts(blockchain):
+    """Calculate counts from the blockchain ledger itself."""
+    records = [block for block in blockchain.chain if getattr(block, "decision", "") != "GENESIS"]
+    total_records = len(records)
+    fraud_records = sum(1 for block in records if getattr(block, "decision", "") == "Fraudulent")
+    fraud_rate = (fraud_records / total_records * 100) if total_records else 0.0
+    return total_records, fraud_records, fraud_rate
+
 
 def risk_level(score):
     if score >= 0.70:
@@ -565,13 +702,13 @@ def preprocess_claims(input_df):
         if col not in df.columns:
             df[col] = numeric_means[col]
         else:
-            df[col] = df[col].fillna(numeric_means[col])
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(numeric_means[col])
 
     for col in categorical_cols:
         if col not in df.columns:
             df[col] = categorical_modes[col]
         else:
-            df[col] = df[col].fillna(categorical_modes[col])
+            df[col] = df[col].fillna(categorical_modes[col]).astype(str)
 
     claim_q3 = preprocess_info["claim_q3"]
     claim_iqr = preprocess_info["claim_iqr"]
@@ -624,21 +761,27 @@ def make_claim_dict(patient_age, patient_gender, diagnosis_code, procedure_code,
 
 
 def show_block(block):
+    block_hash = get_block_hash(block)
+    model_version = getattr(block, "model_version", MODEL_VERSION)
+    nonce = getattr(block, "nonce", "N/A")
+
     col_a, col_b = st.columns(2)
     with col_a:
         st.write(f"**Block index:** {block.index}")
         st.write(f"**Timestamp:** {block.timestamp}")
         st.write(f"**Decision:** {block.decision}")
+        st.write(f"**Model version:** {model_version}")
     with col_b:
         st.write(f"**Fraud score:** {block.fraud_score}")
         st.write(f"**Source:** {block.source}")
+        st.write(f"**Nonce:** {nonce}")
 
     st.write("**Claim hash**")
-    st.markdown(f'<div class="hash-box">{block.claim_hash}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="hash-box">{safe_text(block.claim_hash)}</div>', unsafe_allow_html=True)
     st.write("**Previous hash**")
-    st.markdown(f'<div class="hash-box">{block.previous_hash}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="hash-box">{safe_text(block.previous_hash)}</div>', unsafe_allow_html=True)
     st.write("**Block hash**")
-    st.markdown(f'<div class="hash-box">{block.block_hash}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="hash-box">{safe_text(block_hash)}</div>', unsafe_allow_html=True)
 
 
 # ----------------------------------------------------------------
@@ -655,20 +798,22 @@ def ledger_html():
         else:
             badge = '<span class="badge-legit">Legitimate</span>'
 
-        short_claim = block.claim_hash[:18] + "…" if len(block.claim_hash) > 18 else block.claim_hash
-        short_prev  = block.previous_hash[:18] + "…" if len(block.previous_hash) > 18 else block.previous_hash
-        short_block = block.block_hash[:18] + "…" if len(block.block_hash) > 18 else block.block_hash
+        block_hash = get_block_hash(block)
+        model_version = getattr(block, "model_version", MODEL_VERSION)
+        nonce = getattr(block, "nonce", "N/A")
 
         rows_html += f"""
         <tr>
-            <td>{block.index}</td>
-            <td>{block.timestamp}</td>
+            <td>{safe_text(block.index)}</td>
+            <td>{safe_text(block.timestamp)}</td>
             <td>{badge}</td>
-            <td>{block.fraud_score}</td>
-            <td>{block.source}</td>
-            <td class="mono" title="{block.claim_hash}">{short_claim}</td>
-            <td class="mono" title="{block.previous_hash}">{short_prev}</td>
-            <td class="mono" title="{block.block_hash}">{short_block}</td>
+            <td>{safe_text(block.fraud_score)}</td>
+            <td>{safe_text(model_version)}</td>
+            <td>{safe_text(block.source)}</td>
+            <td>{safe_text(nonce)}</td>
+            <td class="mono" title="{safe_text(block.claim_hash)}">{safe_text(short_hash(block.claim_hash))}</td>
+            <td class="mono" title="{safe_text(block.previous_hash)}">{safe_text(short_hash(block.previous_hash))}</td>
+            <td class="mono" title="{safe_text(block_hash)}">{safe_text(short_hash(block_hash))}</td>
         </tr>
         """
 
@@ -765,7 +910,9 @@ def ledger_html():
                         <th>Timestamp</th>
                         <th>Decision</th>
                         <th>Fraud Score</th>
+                        <th>Model Version</th>
                         <th>Source</th>
+                        <th>Nonce</th>
                         <th>Claim Hash</th>
                         <th>Previous Hash</th>
                         <th>Block Hash</th>
@@ -789,10 +936,12 @@ def ledger_dataframe():
             "Timestamp": block.timestamp,
             "Decision": block.decision,
             "Fraud Score": block.fraud_score,
+            "Model Version": getattr(block, "model_version", MODEL_VERSION),
             "Source": block.source,
+            "Nonce": getattr(block, "nonce", "N/A"),
             "Claim Hash": block.claim_hash,
             "Previous Hash": block.previous_hash,
-            "Block Hash": block.block_hash
+            "Block Hash": get_block_hash(block)
         })
     return pd.DataFrame(rows)
 
@@ -801,15 +950,51 @@ def ledger_dataframe():
 # FIX 2: helper to render a pandas DataFrame as a styled HTML
 # table via components.v1.html() — avoids the blank iframe bug
 # ----------------------------------------------------------------
-def dataframe_html(df, max_rows=None):
+def dataframe_html(df, max_rows=None, highlight_fraud=False):
+    """
+    Render a DataFrame as a styled HTML table to avoid blank iframe/theme issues.
+
+    If highlight_fraud=True and a Decision column exists:
+    - Fraudulent rows are displayed with a soft red background.
+    - Legitimate rows are displayed with a soft green background.
+    - The Decision and Risk_Level cells are displayed as colored badges.
+    """
     display_df = df.head(max_rows) if max_rows else df
 
-    header_cells = "".join(f"<th>{col}</th>" for col in display_df.columns)
+    header_cells = "".join(f"<th>{safe_text(col)}</th>" for col in display_df.columns)
 
     body_rows = ""
     for _, row in display_df.iterrows():
-        cells = "".join(f"<td>{val}</td>" for val in row)
-        body_rows += f"<tr>{cells}</tr>"
+        decision_value = str(row.get("Decision", "")).strip()
+
+        if highlight_fraud and decision_value == "Fraudulent":
+            row_class = "fraud-row"
+        elif highlight_fraud and decision_value == "Legitimate":
+            row_class = "legit-row"
+        else:
+            row_class = ""
+
+        cells = ""
+        for col in display_df.columns:
+            value = row[col]
+            value_text = str(value).strip()
+
+            if highlight_fraud and col == "Decision" and value_text == "Fraudulent":
+                cell_value = '<span class="decision-badge fraud-badge">Fraudulent</span>'
+            elif highlight_fraud and col == "Decision" and value_text == "Legitimate":
+                cell_value = '<span class="decision-badge legit-badge">Legitimate</span>'
+            elif highlight_fraud and col == "Risk_Level" and value_text == "High":
+                cell_value = '<span class="risk-badge high-risk">High</span>'
+            elif highlight_fraud and col == "Risk_Level" and value_text == "Medium":
+                cell_value = '<span class="risk-badge medium-risk">Medium</span>'
+            elif highlight_fraud and col == "Risk_Level" and value_text == "Low":
+                cell_value = '<span class="risk-badge low-risk">Low</span>'
+            else:
+                cell_value = safe_text(value)
+
+            cells += f"<td>{cell_value}</td>"
+
+        body_rows += f'<tr class="{row_class}">{cells}</tr>'
 
     return f"""
     <!DOCTYPE html>
@@ -855,6 +1040,57 @@ def dataframe_html(df, max_rows=None):
         }}
         tbody tr:last-child td {{ border-bottom: none; }}
         tbody tr:hover td {{ background: #fff1d6; }}
+
+        /* Highlighted Bulk Upload prediction rows */
+        tr.fraud-row td {{
+            background: #fef2f2;
+            border-bottom: 1px solid #fecaca;
+        }}
+        tr.fraud-row:hover td {{
+            background: #fee2e2;
+        }}
+        tr.legit-row td {{
+            background: #f0fdf4;
+            border-bottom: 1px solid #bbf7d0;
+        }}
+        tr.legit-row:hover td {{
+            background: #dcfce7;
+        }}
+
+        .decision-badge,
+        .risk-badge {{
+            display: inline-block;
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            line-height: 1.25;
+        }}
+        .fraud-badge {{
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }}
+        .legit-badge {{
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }}
+        .high-risk {{
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }}
+        .medium-risk {{
+            background: #fff1d6;
+            color: #9a4f0e;
+            border: 1px solid #fed7aa;
+        }}
+        .low-risk {{
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }}
     </style>
     </head>
     <body>
@@ -868,10 +1104,41 @@ def dataframe_html(df, max_rows=None):
     </html>
     """
 
-
 def estimate_table_height(n_rows, row_px=38, header_px=42, padding=16, max_px=600):
     """Compute a sensible iframe height for a given number of rows."""
     return min(header_px + n_rows * row_px + padding, max_px)
+
+
+# ------------------------------------------------------------
+# Navigation and display helpers
+# ------------------------------------------------------------
+
+PAGES = [
+    "Home",
+    "Single Claim",
+    "Bulk Upload",
+    "OCR Scanner",
+    "Blockchain",
+    "Model Results",
+    "About",
+]
+
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Home"
+
+
+def go_to(page_name):
+    """Navigate between app sections from Home buttons and keep sidebar radio in sync."""
+    st.session_state.current_page = page_name
+    st.rerun()
+
+
+def display_optional_image(file_name, caption):
+    """Display a result image if it exists; otherwise show a friendly message."""
+    if Path(file_name).exists():
+        st.image(file_name, caption=caption, use_container_width=True)
+    else:
+        st.info(f"{file_name} not found.")
 
 
 # ------------------------------------------------------------
@@ -881,16 +1148,21 @@ def estimate_table_height(n_rows, row_px=38, header_px=42, padding=16, max_px=60
 st.sidebar.title("🏥 MediGuard")
 st.sidebar.caption("Healthcare claim review prototype")
 
-page = st.sidebar.radio(
+selected_page = st.sidebar.radio(
     "Go to",
-    ["Home", "Single Claim", "Bulk Upload", "OCR Scanner", "Blockchain", "Model Results", "About"]
+    PAGES,
+    index=PAGES.index(st.session_state.current_page),
 )
 
+if selected_page != st.session_state.current_page:
+    st.session_state.current_page = selected_page
+    st.rerun()
+
+page = st.session_state.current_page
+
 st.sidebar.divider()
-valid, _ = bc.verify_chain()
-total = st.session_state.total_claims
-fraud = st.session_state.fraud_claims
-rate = (fraud / total * 100) if total else 0
+valid, _ = verify_blockchain(bc)
+total, fraud, rate = ledger_counts(bc)
 
 st.sidebar.write("**Session stats**")
 st.sidebar.markdown(f"""
@@ -899,9 +1171,24 @@ st.sidebar.markdown(f"""
 🚨 Fraud flagged: <b>{fraud}</b><br>
 📊 Fraud rate: <b>{rate:.1f}%</b><br>
 🔗 Ledger blocks: <b>{len(bc.chain)}</b><br>
+🧠 Model: <b>{safe_text(MODEL_VERSION)}</b><br>
 ✅ Ledger status: <b>{'Valid' if valid else '⚠️ Invalid'}</b>
 </div>
 """, unsafe_allow_html=True)
+
+with st.sidebar.expander("Demo controls"):
+    st.caption("Use this only before a fresh demo if you want to clear previous blockchain records.")
+    reset_confirmed = st.checkbox("I want to reset the demo ledger")
+
+    if st.button("Reset ledger", disabled=not reset_confirmed, use_container_width=True):
+        try:
+            Path(CHAIN_FILE).unlink(missing_ok=True)
+            st.session_state.blockchain = Blockchain(chain_file=CHAIN_FILE)
+            st.session_state.current_page = "Home"
+            st.success("Demo ledger reset.")
+            st.rerun()
+        except Exception as error:
+            st.error(f"Could not reset ledger: {error}")
 
 
 # ------------------------------------------------------------
@@ -910,37 +1197,99 @@ st.sidebar.markdown(f"""
 
 if page == "Home":
 
-    st.markdown("""
-    <div class="header-card">
-        <p class="header-title">🏥 Healthcare Fraud Detection System</p>
-        <p class="header-subtitle">
-        A final year project prototype for reviewing healthcare claims, generating
-        fraud predictions, and keeping immutable audit records on a blockchain ledger.
+    st.markdown(f"""
+    <div class="hero-wrap">
+        <div class="hero-kicker">Final Year Project Prototype</div>
+        <p class="hero-title">Healthcare Fraud Detection System</p>
+        <p class="hero-subtitle">
+        Review healthcare claims using the final selected <b>XGBoost</b> model and store
+        prediction outcomes in a tamper-evident blockchain-style audit ledger.
         </p>
+        <div class="hero-badges">
+            <span class="hero-badge">🧠 {safe_text(MODEL_VERSION)}</span>
+            <span class="hero-badge">🔐 SHA-256 Hashing</span>
+            <span class="hero-badge">⛓️ Proof-of-Work Ledger</span>
+            <span class="hero-badge">📄 OCR-assisted Input</span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
+    st.subheader("Main menu")
+    st.caption("Choose a module to start your demo flow.")
+
     col1, col2, col3 = st.columns(3)
+
     with col1:
         st.markdown("""
-        <div class="info-card">
-        <h3>🔍 Single Claim</h3>
-        <p>Enter one claim record and view the model prediction with full blockchain audit logging.</p>
-        </div>""", unsafe_allow_html=True)
+        <div class="module-card">
+            <div class="module-icon">🔍</div>
+            <p class="module-title">Single Claim</p>
+            <p class="module-text">Enter one claim record and generate a fraud probability, decision, risk level, and blockchain record.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Single Claim", key="home_single", use_container_width=True):
+            go_to("Single Claim")
+
     with col2:
         st.markdown("""
-        <div class="info-card">
-        <h3>📂 Bulk Upload</h3>
-        <p>Upload a CSV file and screen multiple claims together. Download results as a report.</p>
-        </div>""", unsafe_allow_html=True)
+        <div class="module-card">
+            <div class="module-icon">📂</div>
+            <p class="module-title">Bulk Upload</p>
+            <p class="module-text">Upload a CSV file, screen multiple claims, view summary metrics, and download prediction results.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Bulk Upload", key="home_bulk", use_container_width=True):
+            go_to("Bulk Upload")
+
     with col3:
         st.markdown("""
-        <div class="info-card">
-        <h3>⛓️ Blockchain Ledger</h3>
-        <p>Store prediction records and verify SHA-256 hash chain integrity.</p>
-        </div>""", unsafe_allow_html=True)
+        <div class="module-card">
+            <div class="module-icon">📄</div>
+            <p class="module-title">OCR Scanner</p>
+            <p class="module-text">Upload claim documents and review extracted fields before running the fraud prediction workflow.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open OCR Scanner", key="home_ocr", use_container_width=True):
+            go_to("OCR Scanner")
 
-    st.subheader("Session overview")
+    col4, col5, col6 = st.columns(3)
+
+    with col4:
+        st.markdown("""
+        <div class="module-card">
+            <div class="module-icon">⛓️</div>
+            <p class="module-title">Blockchain</p>
+            <p class="module-text">Inspect stored blocks, nonce values, model version, hash links, and chain integrity status.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Blockchain", key="home_blockchain", use_container_width=True):
+            go_to("Blockchain")
+
+    with col5:
+        st.markdown("""
+        <div class="module-card">
+            <div class="module-icon">📊</div>
+            <p class="module-title">Model Results</p>
+            <p class="module-text">Present XGBoost performance evidence together with ANN comparison and training output charts.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Model Results", key="home_results", use_container_width=True):
+            go_to("Model Results")
+
+    with col6:
+        st.markdown("""
+        <div class="module-card">
+            <div class="module-icon">ℹ️</div>
+            <p class="module-title">About</p>
+            <p class="module-text">Summarise system functions, technical choices, limitations, and prototype scope for assessment.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open About", key="home_about", use_container_width=True):
+            go_to("About")
+
+    st.divider()
+
+    st.subheader("Live session overview")
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Claims Processed", total)
@@ -950,17 +1299,31 @@ if page == "Home":
 
     st.divider()
 
-    st.markdown("""
-    <div class="info-card">
-        <h3>💡 Suggested demo flow</h3>
-        <p>
-        1. Run one normal and one suspicious claim in <b>Single Claim</b>.<br>
-        2. Upload a CSV in <b>Bulk Upload</b> to screen multiple records.<br>
-        3. Open <b>Blockchain</b> to show the stored audit chain and verify integrity.<br>
-        4. Open <b>Model Results</b> to present evaluation evidence for the selected XGBoost model.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    left, right = st.columns([1.15, 0.85])
+
+    with left:
+        st.markdown("""
+        <div class="demo-flow">
+            <h3>💡 Suggested demo flow</h3>
+            <div class="demo-step"><span class="demo-num">1</span><span>Run the normal and suspicious examples in <b>Single Claim</b>.</span></div>
+            <div class="demo-step"><span class="demo-num">2</span><span>Upload a CSV in <b>Bulk Upload</b> and download the prediction results.</span></div>
+            <div class="demo-step"><span class="demo-num">3</span><span>Use <b>OCR Scanner</b> to show document-assisted claim extraction.</span></div>
+            <div class="demo-step"><span class="demo-num">4</span><span>Open <b>Blockchain</b> to verify hash-chain integrity and inspect a block.</span></div>
+            <div class="demo-step"><span class="demo-num">5</span><span>Open <b>Model Results</b> to justify why XGBoost is selected over ANN.</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with right:
+        is_valid, status_message = verify_blockchain(bc)
+        st.markdown("""
+        <div class="demo-flow">
+            <h3>✅ Integrity status</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        if is_valid:
+            st.success(status_message)
+        else:
+            st.error(status_message)
 
 
 # ------------------------------------------------------------
@@ -1069,13 +1432,10 @@ elif page == "Single Claim":
 
         block = bc.add_record(
             {"Claim_ID": claim_id, "Provider_ID": provider_id,
-             "Fraud_Score": round(score, 4), "Decision": decision},
+             "Fraud_Score": round(score, 4), "Decision": decision, "Model_Version": MODEL_VERSION},
             score, source="Single Claim"
         )
 
-        st.session_state.total_claims += 1
-        if decision == "Fraudulent":
-            st.session_state.fraud_claims += 1
 
         st.divider()
         st.subheader("Prediction result")
@@ -1108,7 +1468,11 @@ elif page == "Bulk Upload":
     uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 
     if uploaded_file is not None:
-        raw_df = pd.read_csv(uploaded_file)
+        try:
+            raw_df = pd.read_csv(uploaded_file)
+        except Exception as error:
+            st.error(f"Could not read CSV file: {error}")
+            st.stop()
 
         st.subheader("Uploaded data preview")
 
@@ -1126,13 +1490,14 @@ elif page == "Bulk Upload":
             results_df["Fraud_Probability_%"] = [f"{float(score) * 100:.2f}%" for score in scores]
             results_df["Decision"] = decisions
             results_df["Risk_Level"] = risks
+            results_df["Model_Version"] = MODEL_VERSION
 
             for i, score in enumerate(scores):
                 claim_id = str(raw_df["Claim_ID"].iloc[i]) if "Claim_ID" in raw_df.columns else f"ROW_{i}"
                 provider_id = str(raw_df["Provider_ID"].iloc[i]) if "Provider_ID" in raw_df.columns else "UNKNOWN"
                 bc.add_record(
                     {"Claim_ID": claim_id, "Provider_ID": provider_id,
-                     "Fraud_Score": round(float(score), 4), "Decision": decisions[i]},
+                     "Fraud_Score": round(float(score), 4), "Decision": decisions[i], "Model_Version": MODEL_VERSION},
                     float(score), source="Bulk CSV"
                 )
 
@@ -1140,8 +1505,6 @@ elif page == "Bulk Upload":
             fraud_count = decisions.count("Fraudulent")
             legitimate_count = decisions.count("Legitimate")
 
-            st.session_state.total_claims += total_b
-            st.session_state.fraud_claims += fraud_count
 
             st.divider()
             st.subheader("Bulk prediction summary")
@@ -1155,7 +1518,7 @@ elif page == "Bulk Upload":
 
             # FIX: Use components.v1.html() for results table too
             results_height = estimate_table_height(len(results_df))
-            components.html(dataframe_html(results_df), height=results_height, scrolling=True)
+            components.html(dataframe_html(results_df, highlight_fraud=True), height=results_height, scrolling=True)
 
             st.download_button(
                 label="⬇️ Download Prediction Results",
@@ -1178,7 +1541,14 @@ elif page == "OCR Scanner":
 
     try:
         from document_scanner import render_document_scanner
-        render_document_scanner(model, scaler, bc)
+        render_document_scanner(model, scaler, bc, preprocess_info=preprocess_info)
+    except TypeError:
+        # Backward compatibility for older document_scanner.py versions with only 3 parameters.
+        try:
+            from document_scanner import render_document_scanner
+            render_document_scanner(model, scaler, bc)
+        except Exception as error:
+            st.error(f"OCR module error: {error}")
     except ImportError:
         st.warning("document_scanner.py was not found in this folder.")
         st.info("For the demo, keep this page only if the OCR scanner file is completed and tested.")
@@ -1195,11 +1565,17 @@ elif page == "Blockchain":
     st.title("Blockchain Records")
     st.write("Records created during the current session, stored as a SHA-256 linked hash chain.")
 
-    is_valid, message = bc.verify_chain()
+    is_valid, message = verify_blockchain(bc)
     if is_valid:
         st.success(f"✅ Integrity check passed — {message}")
     else:
         st.error(f"❌ Integrity check failed — {message}")
+
+    b1, b2, b3, b4 = st.columns(4)
+    b1.metric("Ledger Blocks", len(bc.chain))
+    b2.metric("Stored Records", total)
+    b3.metric("Fraudulent Records", fraud)
+    b4.metric("Fraud Rate", f"{rate:.1f}%")
 
     st.subheader("Ledger table")
 
@@ -1231,14 +1607,15 @@ elif page == "Blockchain":
         show_block(selected_block)
 
     if st.button("🔍 Verify Selected Block"):
-        recalculated_hash = selected_block.calculate_hash()
-        if recalculated_hash == selected_block.block_hash:
+        recalculated_hash = compute_block_hash(selected_block)
+        stored_hash = get_block_hash(selected_block)
+        if recalculated_hash == stored_hash:
             st.success("✅ Block is valid. The recalculated hash matches the stored hash.")
         else:
             st.error("❌ Block is invalid. The recalculated hash does not match the stored hash.")
 
         st.write("**Recalculated hash**")
-        st.markdown(f'<div class="hash-box">{recalculated_hash}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="hash-box">{safe_text(recalculated_hash)}</div>', unsafe_allow_html=True)
 
 
 # ------------------------------------------------------------
@@ -1257,26 +1634,36 @@ elif page == "Model Results":
         summary_height = estimate_table_height(len(summary))
         components.html(dataframe_html(summary), height=summary_height, scrolling=False)
     except FileNotFoundError:
-        st.info("full_model_summary.csv not found. Run train_ann_fixed.py first.")
+        st.info("full_model_summary.csv not found. Run main_fixed.py and train_ann_fixed.py first.")
 
     st.divider()
 
+    st.subheader("Core XGBoost evaluation charts")
     col1, col2, col3 = st.columns(3)
     with col1:
-        try:
-            st.image("confusion_matrix_XGBoost.png", caption="XGBoost Confusion Matrix", use_container_width=True)
-        except Exception:
-            st.info("confusion_matrix_XGBoost.png not found.")
+        display_optional_image("confusion_matrix_XGBoost.png", "XGBoost Confusion Matrix")
     with col2:
-        try:
-            st.image("model_comparison.png", caption="Model Comparison", use_container_width=True)
-        except Exception:
-            st.info("model_comparison.png not found.")
+        display_optional_image("model_comparison.png", "Model Comparison")
     with col3:
-        try:
-            st.image("roc_curve_comparison.png", caption="ROC Curve Comparison", use_container_width=True)
-        except Exception:
-            st.info("roc_curve_comparison.png not found.")
+        display_optional_image("roc_curve_comparison.png", "ROC Curve Comparison")
+
+    st.divider()
+    st.subheader("Data preparation and ANN comparison charts")
+    col4, col5, col6 = st.columns(3)
+    with col4:
+        display_optional_image("smote_comparison.png", "Class Balance Before and After SMOTE")
+    with col5:
+        display_optional_image("confusion_matrix_ANN.png", "ANN Confusion Matrix")
+    with col6:
+        display_optional_image("ann_training_history.png", "ANN Training History")
+
+    col7, col8, col9 = st.columns(3)
+    with col7:
+        display_optional_image("roc_curve_ANN.png", "ANN ROC Curve")
+    with col8:
+        display_optional_image("cross_validation_recall.png", "Cross-Validation Recall")
+    with col9:
+        display_optional_image("confusion_matrix_Random Forest.png", "Random Forest Confusion Matrix")
 
 
 # ------------------------------------------------------------
@@ -1310,6 +1697,7 @@ elif page == "About":
         - Model performance comparison and charts
         - Blockchain-style audit record storage
         - SHA-256 hash-based integrity verification
+        - Nonce-based Proof-of-Work demonstration
         """)
 
     with col2:
@@ -1317,6 +1705,8 @@ elif page == "About":
         st.write("""
         The system is not connected to real hospital or insurance databases.
         The blockchain component is a prototype simulation demonstrating
-        hashing, block linking, and tamper-evident record keeping.
+        hashing, block linking, nonce-based Proof-of-Work, and tamper-evident record keeping.
         It is not a deployed distributed blockchain network.
         """)
+
+# End of app_polished.py
