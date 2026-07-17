@@ -1,12 +1,13 @@
 # document_scanner.py
 # OCR-assisted claim document scanner for the Streamlit app.
-# Uses Claude Vision API for handwriting detection (much more accurate than Tesseract alone).
+# Supports JPG, JPEG, and PNG images using a configured vision API, with Tesseract fallback and mandatory user review.
 
 import streamlit as st
 import pandas as pd
 import re
 import base64
 import json
+import hashlib
 import requests
 import os
 from datetime import datetime
@@ -14,8 +15,14 @@ from PIL import Image, ImageFilter, ImageEnhance
 import io
 
 import pytesseract
-import pdfplumber
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# Resolve Tesseract without forcing a Windows-only path.
+# Set TESSERACT_CMD in .env when Tesseract is installed elsewhere.
+_tesseract_env = os.environ.get("TESSERACT_CMD", "").strip()
+_windows_default = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+if _tesseract_env and os.path.exists(_tesseract_env):
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_env
+elif os.path.exists(_windows_default):
+    pytesseract.pytesseract.tesseract_cmd = _windows_default
 
 # ============================================================
 # CLAUDE VISION — PRIMARY EXTRACTOR (handles handwriting well)
@@ -159,7 +166,7 @@ def preprocess_image_for_ocr(image: Image.Image) -> Image.Image:
 
 
 # ============================================================
-# TEXT EXTRACTION (Tesseract fallback for PDFs / when Vision fails)
+# TEXT EXTRACTION (Tesseract fallback when Vision extraction is unavailable)
 # ============================================================
 
 def extract_text_from_image_tesseract(image_file) -> str:
@@ -176,18 +183,6 @@ def extract_text_from_image_tesseract(image_file) -> str:
     except Exception as e:
         return f"ERROR: {str(e)}"
 
-
-def extract_text_from_pdf(pdf_file) -> str:
-    try:
-        text = ""
-        with pdfplumber.open(pdf_file) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n"
-        return text.strip()
-    except Exception as e:
-        return f"ERROR: {str(e)}"
 
 
 # ============================================================
@@ -360,7 +355,7 @@ def _get_session_fields() -> dict | None:
 # PREPROCESSING + PREDICTION
 # ============================================================
 
-def preprocess_for_ann(fields, scaler, preprocess_info):
+def preprocess_for_model(fields, scaler, preprocess_info):
     input_dict = {k: fields[k] for k in [
         "Patient_Age","Patient_Gender","Diagnosis_Code","Procedure_Code",
         "Claim_Amount","Approved_Amount","Insurance_Type",
@@ -413,10 +408,28 @@ def get_block_hash(block):
 def render_document_scanner(model, scaler, bc, preprocess_info=None):
     st.title("OCR Claim Document Scanner")
     st.write(
-        "Upload a healthcare claim document (PDF, JPG, JPEG, or PNG). "
-        "Supports **printed** and **handwritten** documents — Claude Vision AI reads the document directly."
+        "Upload a healthcare claim document in JPG, JPEG, or PNG format. "
+        "The scanner supports printed and handwritten forms using the configured vision or OCR extraction route."
     )
-    st.caption("Auto-detected fields are pre-filled below. Review and correct before running fraud detection.")
+    st.markdown(
+        """
+        <div style="
+            font-size: 0.80rem;
+            line-height: 1.35;
+            color: #6f6258;
+            background: #fff7ed;
+            border-left: 3px solid #c56a12;
+            border-radius: 5px;
+            padding: 0.45rem 0.65rem;
+            margin: 0.15rem 0 0.35rem 0;
+        ">
+            <strong>OCR tip:</strong> Upload a clear, well-lit and properly aligned JPG or PNG image. Blur, glare,
+            shadows or unclear handwriting may reduce extraction accuracy.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption("Review and correct the extracted values before running fraud detection.")
     st.divider()
 
     if preprocess_info is None:
@@ -429,8 +442,8 @@ def render_document_scanner(model, scaler, bc, preprocess_info=None):
 
     uploaded_file = st.file_uploader(
         "Upload claim document",
-        type=["pdf", "jpg", "jpeg", "png"],
-        help="Printed or handwritten claim forms — PDF, JPG, or PNG.",
+        type=["jpg", "jpeg", "png"],
+        help="Upload a clear printed or handwritten claim form in JPG, JPEG, or PNG format.",
     )
 
     if uploaded_file is None:
@@ -439,56 +452,65 @@ def render_document_scanner(model, scaler, bc, preprocess_info=None):
         st.info("Upload a claim document to begin.")
         return
 
-    file_type = uploaded_file.type
+    allowed_extensions = {".jpg", ".jpeg", ".png"}
+    file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+    if file_extension not in allowed_extensions:
+        st.error("Unsupported file type. Please upload a JPG, JPEG, or PNG image.")
+        return
+
     st.success(f"Uploaded: **{uploaded_file.name}**")
 
-    if file_type in ["image/jpeg", "image/png", "image/jpg"]:
-        st.subheader("Document Preview")
-        preview_image = Image.open(uploaded_file)
-        st.image(preview_image, caption=uploaded_file.name, use_container_width=True)
+    try:
         uploaded_file.seek(0)
+        preview_image = Image.open(uploaded_file).convert("RGB")
+        preview_image.verify()
+        uploaded_file.seek(0)
+        preview_image = Image.open(uploaded_file).convert("RGB")
+    except Exception as error:
+        st.error(f"The uploaded file could not be opened as an image: {error}")
+        return
+
+    st.subheader("Document Preview")
+    st.image(preview_image, caption=uploaded_file.name, use_container_width=True)
+    uploaded_file.seek(0)
 
     # ── Extraction (cached per file) ───────────────────────────────────────────
     st.subheader("Step 1: Text & Field Extraction")
-    file_id = f"{uploaded_file.name}_{uploaded_file.size}"
+    uploaded_file.seek(0)
+    file_bytes = uploaded_file.read()
+    uploaded_file.seek(0)
+    file_id = hashlib.sha256(file_bytes).hexdigest()
 
     if st.session_state.get("ocr_file_id") != file_id:
         extraction_method = "unknown"
 
-        if file_type == "application/pdf":
-            # PDFs: use pdfplumber text extraction → regex
-            with st.spinner("Extracting text from PDF..."):
-                text = extract_text_from_pdf(uploaded_file)
-            if text.startswith("ERROR") or not text:
-                st.error(f"PDF extraction failed: {text}")
-                return
-            raw_fields = parse_claim_fields_from_text(text)
-            st.session_state["ocr_extracted_text"] = text
-            extraction_method = "PDF text + regex"
+        # Images: try the configured vision model first, then use Tesseract as fallback.
+        with st.spinner("Reading the claim document..."):
+            vision_result = extract_fields_via_claude_vision(uploaded_file)
 
+        if vision_result is not None:
+            raw_fields = sanitise_vision_fields(vision_result)
+            extraction_method = "Vision-assisted extraction"
+
+            # Run Tesseract as a supplementary raw-text preview only.
+            uploaded_file.seek(0)
+            tess_text = extract_text_from_image_tesseract(uploaded_file)
+            st.session_state["ocr_extracted_text"] = "" if tess_text.startswith("ERROR") else tess_text
         else:
-            # Images: try Claude Vision first (best for handwriting)
-            with st.spinner("Reading document with Claude Vision AI (handles handwriting)..."):
-                vision_result = extract_fields_via_claude_vision(uploaded_file)
+            uploaded_file.seek(0)
+            with st.spinner("Running OCR fallback..."):
+                extracted_text = extract_text_from_image_tesseract(uploaded_file)
 
-            if vision_result is not None:
-                raw_fields = sanitise_vision_fields(vision_result)
-                extraction_method = "Claude Vision AI"
-                # Also run Tesseract to show raw text in expander
-                uploaded_file.seek(0)
-                tess_text = extract_text_from_image_tesseract(uploaded_file)
-                st.session_state["ocr_extracted_text"] = tess_text
-            else:
-                # Silently fall back to Tesseract + regex
-                uploaded_file.seek(0)
-                with st.spinner("Running Tesseract OCR..."):
-                    text = extract_text_from_image_tesseract(uploaded_file)
-                if text.startswith("ERROR") or not text:
-                    st.error(f"OCR failed: {text}")
-                    return
-                raw_fields = parse_claim_fields_from_text(text)
-                st.session_state["ocr_extracted_text"] = text
-                extraction_method = "Tesseract OCR + regex"
+            if extracted_text.startswith("ERROR") or not extracted_text.strip():
+                st.error(
+                    "The document could not be read. Please upload a clearer JPG or PNG image "
+                    "and ensure that the form is not blurred, cropped, shadowed, or overexposed."
+                )
+                return
+
+            raw_fields = parse_claim_fields_from_text(extracted_text)
+            st.session_state["ocr_extracted_text"] = extracted_text
+            extraction_method = "Tesseract OCR + field parsing"
 
         filled = fill_defaults(raw_fields)
         _init_session_fields(filled)
@@ -519,7 +541,7 @@ def render_document_scanner(model, scaler, bc, preprocess_info=None):
                 use_container_width=True,
             )
         else:
-            st.warning("No fields auto-detected. Fill in manually below.")
+            st.warning("No fields were auto-detected. This may occur with glare, blur, low contrast, cropping, skew, or unclear handwriting. Enter and verify the values manually below.")
 
     with right:
         st.write("**Values loaded into form**")
@@ -590,7 +612,7 @@ def render_document_scanner(model, scaler, bc, preprocess_info=None):
         }
 
         try:
-            X_scaled    = preprocess_for_ann(final_fields, scaler, preprocess_info)
+            X_scaled    = preprocess_for_model(final_fields, scaler, preprocess_info)
             fraud_score = predict_fraud_score(model, X_scaled)
         except Exception as e:
             st.error(f"Prediction failed: {str(e)}")

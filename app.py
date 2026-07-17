@@ -563,7 +563,7 @@ span[data-testid="stIconMaterial"] {
 # ------------------------------------------------------------
 
 try:
-    from blockchain import Blockchain, CHAIN_FILE, MODEL_VERSION
+    from blockchain import Blockchain, CHAIN_FILE
 except Exception as error:
     st.error(
         "Could not import blockchain.py. Please make sure blockchain.py is in the same folder as this app. "
@@ -761,8 +761,8 @@ def make_claim_dict(patient_age, patient_gender, diagnosis_code, procedure_code,
 
 
 def show_block(block):
+    """Display user-relevant audit information without exposing implementation metadata."""
     block_hash = get_block_hash(block)
-    model_version = getattr(block, "model_version", MODEL_VERSION)
     nonce = getattr(block, "nonce", "N/A")
 
     col_a, col_b = st.columns(2)
@@ -770,7 +770,6 @@ def show_block(block):
         st.write(f"**Block index:** {block.index}")
         st.write(f"**Timestamp:** {block.timestamp}")
         st.write(f"**Decision:** {block.decision}")
-        st.write(f"**Model version:** {model_version}")
     with col_b:
         st.write(f"**Fraud score:** {block.fraud_score}")
         st.write(f"**Source:** {block.source}")
@@ -799,7 +798,6 @@ def ledger_html():
             badge = '<span class="badge-legit">Legitimate</span>'
 
         block_hash = get_block_hash(block)
-        model_version = getattr(block, "model_version", MODEL_VERSION)
         nonce = getattr(block, "nonce", "N/A")
 
         rows_html += f"""
@@ -808,7 +806,6 @@ def ledger_html():
             <td>{safe_text(block.timestamp)}</td>
             <td>{badge}</td>
             <td>{safe_text(block.fraud_score)}</td>
-            <td>{safe_text(model_version)}</td>
             <td>{safe_text(block.source)}</td>
             <td>{safe_text(nonce)}</td>
             <td class="mono" title="{safe_text(block.claim_hash)}">{safe_text(short_hash(block.claim_hash))}</td>
@@ -910,7 +907,6 @@ def ledger_html():
                         <th>Timestamp</th>
                         <th>Decision</th>
                         <th>Fraud Score</th>
-                        <th>Model Version</th>
                         <th>Source</th>
                         <th>Nonce</th>
                         <th>Claim Hash</th>
@@ -936,7 +932,6 @@ def ledger_dataframe():
             "Timestamp": block.timestamp,
             "Decision": block.decision,
             "Fraud Score": block.fraud_score,
-            "Model Version": getattr(block, "model_version", MODEL_VERSION),
             "Source": block.source,
             "Nonce": getattr(block, "nonce", "N/A"),
             "Claim Hash": block.claim_hash,
@@ -1171,7 +1166,7 @@ st.sidebar.markdown(f"""
 🚨 Fraud flagged: <b>{fraud}</b><br>
 📊 Fraud rate: <b>{rate:.1f}%</b><br>
 🔗 Ledger blocks: <b>{len(bc.chain)}</b><br>
-🧠 Model: <b>{safe_text(MODEL_VERSION)}</b><br>
+
 ✅ Ledger status: <b>{'Valid' if valid else '⚠️ Invalid'}</b>
 </div>
 """, unsafe_allow_html=True)
@@ -1202,11 +1197,11 @@ if page == "Home":
         <div class="hero-kicker">Final Year Project Prototype</div>
         <p class="hero-title">Healthcare Fraud Detection System</p>
         <p class="hero-subtitle">
-        Review healthcare claims using the final selected <b>XGBoost</b> model and store
+        Review healthcare claims using the system's fixed AI fraud-screening model and store
         prediction outcomes in a tamper-evident blockchain-style audit ledger.
         </p>
         <div class="hero-badges">
-            <span class="hero-badge">🧠 {safe_text(MODEL_VERSION)}</span>
+            <span class="hero-badge">🧠 AI Fraud Screening</span>
             <span class="hero-badge">🔐 SHA-256 Hashing</span>
             <span class="hero-badge">⛓️ Proof-of-Work Ledger</span>
             <span class="hero-badge">📄 OCR-assisted Input</span>
@@ -1259,7 +1254,7 @@ if page == "Home":
         <div class="module-card">
             <div class="module-icon">⛓️</div>
             <p class="module-title">Blockchain</p>
-            <p class="module-text">Inspect stored blocks, nonce values, model version, hash links, and chain integrity status.</p>
+            <p class="module-text">Inspect stored blocks, nonce values, hash links, and chain integrity status.</p>
         </div>
         """, unsafe_allow_html=True)
         if st.button("Open Blockchain", key="home_blockchain", use_container_width=True):
@@ -1270,7 +1265,7 @@ if page == "Home":
         <div class="module-card">
             <div class="module-icon">📊</div>
             <p class="module-title">Model Results</p>
-            <p class="module-text">Present XGBoost performance evidence together with ANN comparison and training output charts.</p>
+            <p class="module-text">Review model-comparison evidence, evaluation metrics, and training output charts.</p>
         </div>
         """, unsafe_allow_html=True)
         if st.button("Open Model Results", key="home_results", use_container_width=True):
@@ -1309,7 +1304,7 @@ if page == "Home":
             <div class="demo-step"><span class="demo-num">2</span><span>Upload a CSV in <b>Bulk Upload</b> and download the prediction results.</span></div>
             <div class="demo-step"><span class="demo-num">3</span><span>Use <b>OCR Scanner</b> to show document-assisted claim extraction.</span></div>
             <div class="demo-step"><span class="demo-num">4</span><span>Open <b>Blockchain</b> to verify hash-chain integrity and inspect a block.</span></div>
-            <div class="demo-step"><span class="demo-num">5</span><span>Open <b>Model Results</b> to justify why XGBoost is selected over ANN.</span></div>
+            <div class="demo-step"><span class="demo-num">5</span><span>Open <b>Model Results</b> to explain how the fixed deployed model was selected.</span></div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1333,7 +1328,7 @@ if page == "Home":
 elif page == "Single Claim":
 
     st.title("Single Claim Prediction")
-    st.write("Fill in a claim record and run the final selected XGBoost fraud detection model.")
+    st.write("Fill in a claim record and run the system's fixed fraud-detection model.")
 
     with st.container(border=True):
         st.write("**Quick examples**")
@@ -1432,7 +1427,7 @@ elif page == "Single Claim":
 
         block = bc.add_record(
             {"Claim_ID": claim_id, "Provider_ID": provider_id,
-             "Fraud_Score": round(score, 4), "Decision": decision, "Model_Version": MODEL_VERSION},
+             "Fraud_Score": round(score, 4), "Decision": decision},
             score, source="Single Claim"
         )
 
@@ -1490,14 +1485,13 @@ elif page == "Bulk Upload":
             results_df["Fraud_Probability_%"] = [f"{float(score) * 100:.2f}%" for score in scores]
             results_df["Decision"] = decisions
             results_df["Risk_Level"] = risks
-            results_df["Model_Version"] = MODEL_VERSION
 
             for i, score in enumerate(scores):
                 claim_id = str(raw_df["Claim_ID"].iloc[i]) if "Claim_ID" in raw_df.columns else f"ROW_{i}"
                 provider_id = str(raw_df["Provider_ID"].iloc[i]) if "Provider_ID" in raw_df.columns else "UNKNOWN"
                 bc.add_record(
                     {"Claim_ID": claim_id, "Provider_ID": provider_id,
-                     "Fraud_Score": round(float(score), 4), "Decision": decisions[i], "Model_Version": MODEL_VERSION},
+                     "Fraud_Score": round(float(score), 4), "Decision": decisions[i]},
                     float(score), source="Bulk CSV"
                 )
 
@@ -1534,11 +1528,10 @@ elif page == "Bulk Upload":
 
 elif page == "OCR Scanner":
 
-    st.title("OCR Document Scanner")
-    st.write(
-        "This page loads the optional OCR module if `document_scanner.py` is available in the project folder."
-    )
-
+    # The scanner module renders its own heading, compact OCR tip,
+    # upload control, review form, and prediction workflow.
+    # Keeping the guidance inside one component avoids duplicate headings
+    # and prevents a large warning banner from appearing above the scanner.
     try:
         from document_scanner import render_document_scanner
         render_document_scanner(model, scaler, bc, preprocess_info=preprocess_info)
@@ -1625,7 +1618,9 @@ elif page == "Blockchain":
 elif page == "Model Results":
 
     st.title("Model Results")
-    st.write("Evaluation outputs generated during model training. XGBoost is the final selected model based on overall performance.")
+    st.write("Evaluation outputs generated during model development. This page is informational: the deployed model is fixed in the backend and cannot be changed by users.")
+
+    st.info("The deployed classifier is fixed by the developer. This page explains the evaluation evidence; it does not provide a model-selection control.")
 
     try:
         summary = pd.read_csv("full_model_summary.csv")
@@ -1638,10 +1633,10 @@ elif page == "Model Results":
 
     st.divider()
 
-    st.subheader("Core XGBoost evaluation charts")
+    st.subheader("Core deployed-model evaluation charts")
     col1, col2, col3 = st.columns(3)
     with col1:
-        display_optional_image("confusion_matrix_XGBoost.png", "XGBoost Confusion Matrix")
+        display_optional_image("confusion_matrix_XGBoost.png", "Deployed Model Confusion Matrix (XGBoost)")
     with col2:
         display_optional_image("model_comparison.png", "Model Comparison")
     with col3:
@@ -1678,10 +1673,11 @@ elif page == "About":
     <div class="info-card">
         <h3>🏥 MediGuard — Healthcare Fraud Detection System</h3>
         <p>
-        This system is developed as a final year project prototype. It uses an XGBoost machine
-        learning model as the final selected classifier to classify healthcare insurance claims
-        as legitimate or potentially fraudulent. The ANN model is retained as a deep learning
-        comparison model in the evaluation.
+        This system is developed as a final year project prototype. It uses a fixed backend
+        fraud-detection classifier to classify healthcare insurance claims as legitimate or
+        potentially fraudulent. The model configuration is controlled by the system developer
+        and is not selectable by end users. Detailed model-comparison evidence is available on
+        the Model Results page for transparency and assessment.
         </p>
     </div>
     """, unsafe_allow_html=True)
