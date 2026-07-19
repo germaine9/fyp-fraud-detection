@@ -2302,5 +2302,17 @@
     "previous_hash": "0001c6b9c4f429b06664c0ac3ee1127fe743b813e40ad71a2b1b28b9ade14c6d",
     "nonce": 17135,
     "hash": "000d5ba324495f2c24c5c8d8064bc160d7d961734f2ff725ac02951378642e0f"
+  },
+  {
+    "index": 192,
+    "claim_hash": "6dd81d5dc10927b19358d196973cd68ed370cda405051043cbac7c534471474f",
+    "fraud_score": 0.9999,
+    "decision": "Fraudulent",
+    "timestamp": "2026-07-19T11:39:21Z",
+    "model_version": "XGBoost_v1.0",
+    "source": "OCR Scanner",
+    "previous_hash": "000d5ba324495f2c24c5c8d8064bc160d7d961734f2ff725ac02951378642e0f",
+    "nonce": 89,
+    "hash": "000ac5d75f6ff82e1eb7aa6217b138a8a00ce71c22d993528d847c7b00a149bb"
   }
 ]
