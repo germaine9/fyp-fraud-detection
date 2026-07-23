@@ -1697,7 +1697,7 @@ elif page == "Model Results":
     with col8:
         display_optional_image("cross_validation_recall.png", "Cross-Validation Recall")
     with col9:
-        display_optional_image("confusion_matrix_Random Forest.png", "Random Forest Confusion Matrix")
+        display_optional_image("confusion_matrix_Random_Forest.png", "Random Forest Confusion Matrix")
 
 
 # ------------------------------------------------------------
