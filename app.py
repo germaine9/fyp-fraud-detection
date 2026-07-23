@@ -1330,15 +1330,6 @@ elif page == "Single Claim":
     st.title("Single Claim Prediction")
     st.write("Fill in a claim record and run the system's fixed fraud-detection model.")
 
-    with st.container(border=True):
-        st.write("**Quick examples**")
-        c1, c2 = st.columns(2)
-        if c1.button("✅ Use normal example"):
-            st.session_state.sample_type = "normal"
-            st.rerun()
-        if c2.button("🚨 Use suspicious example"):
-            st.session_state.sample_type = "suspicious"
-            st.rerun()
 
     if st.session_state.sample_type == "suspicious":
         default = {
@@ -1410,7 +1401,55 @@ elif page == "Single Claim":
         with col9:
             prior_visits = st.number_input("Prior Visits in 12 Months", min_value=0, value=default["prior_visits"])
 
-        submitted = st.form_submit_button("🔍 Run Prediction")
+            submitted = st.form_submit_button(
+            "🔍 Run Prediction",
+            use_container_width=True
+        )
+
+    # Example buttons are now displayed at the bottom of the form
+    with st.container(border=True):
+        st.write("**Load example claim data**")
+        st.caption(
+            "Select an example to automatically populate the claim fields above."
+        )
+
+        example_col1, example_col2 = st.columns(2)
+
+        if example_col1.button(
+            "✅ Use Normal Example",
+            key="single_claim_normal_example",
+            use_container_width=True
+        ):
+            st.session_state.sample_type = "normal"
+            st.rerun()
+
+        if example_col2.button(
+            "🚨 Use Suspicious Example",
+            key="single_claim_suspicious_example",
+            use_container_width=True
+        ):
+            st.session_state.sample_type = "suspicious"
+            st.rerun()
+
+    if submitted:
+        claim_data = make_claim_dict(
+            patient_age,
+            patient_gender,
+            diagnosis_code,
+            procedure_code,
+            claim_amount,
+            approved_amount,
+            insurance_type,
+            days_between,
+            monthly_claims,
+            provider_specialty,
+            patient_state,
+            claim_status,
+            length_of_stay,
+            visit_type,
+            chronic_condition,
+            prior_visits
+        )
 
     if submitted:
         claim_data = make_claim_dict(
