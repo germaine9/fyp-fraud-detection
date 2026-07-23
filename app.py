@@ -1657,9 +1657,11 @@ elif page == "Blockchain":
 elif page == "Model Results":
 
     st.title("Model Results")
-    st.write("Evaluation outputs generated during model development. This page is informational: the deployed model is fixed in the backend and cannot be changed by users.")
+    st.write(
+    "View the evaluation metrics and visual results of the healthcare fraud detection model."
+)
 
-    st.info("The deployed classifier is fixed by the developer. This page explains the evaluation evidence; it does not provide a model-selection control.")
+    
 
     try:
         summary = pd.read_csv("full_model_summary.csv")
