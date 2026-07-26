@@ -46,5 +46,65 @@
     "previous_hash": "00032ec4895a4923a534c2adb941046afb7cdffa2cb58e11e4923ac62536bf62",
     "nonce": 205,
     "hash": "0007cb905e0112a455596e852632b06bd64ca6b86ef6fbf98203d02fba3ad83a"
+  },
+  {
+    "index": 4,
+    "claim_hash": "700a3aa54642cee02f42a52460a2f62dd580f59ee69c6799270d2e16eaece5a9",
+    "fraud_score": 0.0001,
+    "decision": "Legitimate",
+    "timestamp": "2026-07-26T07:56:45Z",
+    "model_version": "XGBoost_v1.0",
+    "source": "OCR Scanner",
+    "previous_hash": "0007cb905e0112a455596e852632b06bd64ca6b86ef6fbf98203d02fba3ad83a",
+    "nonce": 1527,
+    "hash": "0002cb6b318a3126fdb1a2cfa7997a6a39d62235135b7ae0097910dcb29b90d3"
+  },
+  {
+    "index": 5,
+    "claim_hash": "29deb0e6decb030115301c448a38193e5a63f08665781b2d3e5374b3939c6acd",
+    "fraud_score": 0.9999,
+    "decision": "Fraudulent",
+    "timestamp": "2026-07-26T07:58:13Z",
+    "model_version": "XGBoost_v1.0",
+    "source": "OCR Scanner",
+    "previous_hash": "0002cb6b318a3126fdb1a2cfa7997a6a39d62235135b7ae0097910dcb29b90d3",
+    "nonce": 4020,
+    "hash": "0001f097dfcea546d78fd82d420eb5036202aea0c07cc9ba9ffa613e05a3fb59"
+  },
+  {
+    "index": 6,
+    "claim_hash": "edee6c6978d005c6f3e6226736fe184b9c83c48b784b17170c24242a940203ad",
+    "fraud_score": 0.0004,
+    "decision": "Legitimate",
+    "timestamp": "2026-07-26T08:03:43Z",
+    "model_version": "XGBoost_v1.0",
+    "source": "OCR Scanner",
+    "previous_hash": "0001f097dfcea546d78fd82d420eb5036202aea0c07cc9ba9ffa613e05a3fb59",
+    "nonce": 910,
+    "hash": "00071408eb38b5165a829af7f8ff42f45ec8ed54f935143d407b3fc09f4bf129"
+  },
+  {
+    "index": 7,
+    "claim_hash": "23a9bf0df10982af71be6ed54f9590566c2fb903936036b74d6b8b26783b1e7e",
+    "fraud_score": 0.9999,
+    "decision": "Fraudulent",
+    "timestamp": "2026-07-26T08:07:01Z",
+    "model_version": "XGBoost_v1.0",
+    "source": "OCR Scanner",
+    "previous_hash": "00071408eb38b5165a829af7f8ff42f45ec8ed54f935143d407b3fc09f4bf129",
+    "nonce": 6376,
+    "hash": "000f9e2d087b6d6806ee432faf1438977a273c3b3ef6dbfefb1c7e4b5d48c462"
+  },
+  {
+    "index": 8,
+    "claim_hash": "563e3f51629e658edb8806aaf14f3207663049efdeb59c2ddc53923acdcd5274",
+    "fraud_score": 0.9999,
+    "decision": "Fraudulent",
+    "timestamp": "2026-07-26T08:07:52Z",
+    "model_version": "XGBoost_v1.0",
+    "source": "OCR Scanner",
+    "previous_hash": "000f9e2d087b6d6806ee432faf1438977a273c3b3ef6dbfefb1c7e4b5d48c462",
+    "nonce": 508,
+    "hash": "0003d0d3d146842dba917474a8df54f2932f63ec3cc142381c97a31741a7ec23"
   }
 ]
