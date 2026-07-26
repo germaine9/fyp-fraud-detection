@@ -357,6 +357,13 @@ try:
         is_valid_after_tamper, _ = bc.verify_integrity()
         test("Tamper detection works", not is_valid_after_tamper)
 
+        append_blocked = False
+        try:
+            bc.add_record({"claim_id": "SHOULD-NOT-APPEND"}, 0.50, source="System Test")
+        except RuntimeError:
+            append_blocked = True
+        test("Invalid ledger refuses new records", append_blocked)
+
         bc.chain[1].previous_hash = original_previous_hash
 
 except Exception as error:
@@ -411,6 +418,7 @@ except Exception as error:
 section("TEST 12: Streamlit app file")
 
 candidate_apps = [
+    "app_polished.py",
     "app.py",
     "app_ux_final.py",
     "app_ux_fixed.py",

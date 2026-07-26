@@ -189,9 +189,13 @@ def _extract_json_object(raw_text: str) -> dict[str, Any]:
     return parsed
 
 
-def extract_fields_via_claude_vision(image_file: Any) -> tuple[dict[str, Any] | None, str | None]:
-    """Use Claude Vision as the primary handwriting extractor."""
+def extract_fields_via_claude_vision(
+    image_file: Any, allow_external: bool = True
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Use Claude Vision only when configured and explicitly permitted by the user."""
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if api_key and not allow_external:
+        return None, "External vision processing was not authorised; Tesseract fallback was used."
     if not api_key:
         return None, "ANTHROPIC_API_KEY is not configured; Tesseract fallback was used."
 
@@ -1098,6 +1102,17 @@ def render_document_scanner(model: Any, scaler: Any, bc: Any, preprocess_info: d
         unsafe_allow_html=True,
     )
     st.caption("Review every extracted value before running fraud detection.")
+    external_vision_configured = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
+    allow_external_vision = False
+    if external_vision_configured:
+        st.info(
+            "An external vision service is configured. When enabled, the uploaded image is sent "
+            "to that service for field extraction. The local Tesseract fallback remains available."
+        )
+        allow_external_vision = st.checkbox(
+            "I confirm that this image contains no real patient data and permit external vision processing."
+        )
+
     st.divider()
 
     if preprocess_info is None:
@@ -1157,7 +1172,9 @@ def render_document_scanner(model: Any, scaler: Any, bc: Any, preprocess_info: d
     if st.session_state.get("ocr_file_id") != file_id:
         with st.spinner("Reading printed text and handwriting..."):
             uploaded_file.seek(0)
-            vision_result, vision_warning = extract_fields_via_claude_vision(uploaded_file)
+            vision_result, vision_warning = extract_fields_via_claude_vision(
+                uploaded_file, allow_external=allow_external_vision
+            )
 
             uploaded_file.seek(0)
             tesseract_result, extracted_text, tesseract_error = extract_fields_via_tesseract(uploaded_file)
@@ -1349,7 +1366,16 @@ def render_document_scanner(model: Any, scaler: Any, bc: Any, preprocess_info: d
                 else 1,
             )
 
-        run_button = st.form_submit_button("Run Fraud Detection", type="primary")
+        review_confirmed = st.checkbox(
+            "I have reviewed and corrected every extracted field shown above."
+        )
+        run_button = st.form_submit_button(
+            "Run Fraud Detection", type="primary"
+        )
+
+    if run_button and not review_confirmed:
+        st.warning("Please confirm that you have reviewed and corrected all extracted fields.")
+        return
 
     if run_button:
         final_fields = {
@@ -1394,14 +1420,13 @@ def render_document_scanner(model: Any, scaler: Any, bc: Any, preprocess_info: d
         metric3.metric("Risk Level", risk)
         st.progress(fraud_score)
 
-        claim_data = {
-            "source": "OCR Scanner",
-            "filename": uploaded_file.name,
-            "Claim_ID": final_fields["Claim_ID"],
-            "Provider_ID": final_fields["Provider_ID"],
+        claim_data = dict(final_fields)
+        claim_data.update({
+            "Input_Source": "OCR Scanner",
+            "Document_Name": uploaded_file.name,
             "Fraud_Score": round(fraud_score, 4),
             "Decision": decision,
-        }
+        })
         block = add_blockchain_record(bc, claim_data, fraud_score)
         block_hash = get_block_hash(block)
 

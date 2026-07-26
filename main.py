@@ -25,11 +25,31 @@ from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline
 
 
+DATASET_FILE = "healthcare_fraud_detection.csv"
+DATASET_SOURCE = "https://www.kaggle.com/datasets/esseasd/healthcare-fraud-detection-dataset"
+REQUIRED_COLUMNS = {
+    "Is_Fraud", "Claim_Amount", "Approved_Amount",
+    "Number_of_Claims_Per_Provider_Monthly"
+}
+
+
+def validate_dataset(dataframe: pd.DataFrame) -> None:
+    """Fail early when the supplied dataset cannot support the documented pipeline."""
+    missing = sorted(REQUIRED_COLUMNS.difference(dataframe.columns))
+    if missing:
+        raise ValueError(f"Dataset is missing required columns: {missing}")
+    labels = set(pd.Series(dataframe["Is_Fraud"]).dropna().unique().tolist())
+    if not labels.issubset({0, 1}) or not labels:
+        raise ValueError("Is_Fraud must contain binary labels 0 and 1.")
+
+
 # ============================================================
 # STEP 1: Load dataset
 # ============================================================
 
-df = pd.read_csv("healthcare_fraud_detection.csv")
+df = pd.read_csv(DATASET_FILE)
+validate_dataset(df)
+print(f"Dataset source: {DATASET_SOURCE}")
 
 print("Dataset loaded:", df.shape)
 print("\nClass distribution:")
@@ -320,7 +340,7 @@ for name, model in models.items():
     prob = model.predict_proba(X_test_scaled)[:, 1]
 
     # Evaluation
-    report = classification_report(y_test, pred, output_dict=True)
+    report = classification_report(y_test, pred, output_dict=True, zero_division=0)
     acc = accuracy_score(y_test, pred)
     roc = roc_auc_score(y_test, prob)
 
@@ -328,7 +348,7 @@ for name, model in models.items():
     recall_fraud = report["1"]["recall"]
     f1_fraud = report["1"]["f1-score"]
 
-    print(classification_report(y_test, pred))
+    print(classification_report(y_test, pred, zero_division=0))
     print(f"Accuracy          : {acc:.4f}")
     print(f"Precision (Fraud) : {precision_fraud:.4f}")
     print(f"Recall (Fraud)    : {recall_fraud:.4f}")
@@ -451,11 +471,15 @@ print("\nSaved: model_summary.csv")
 
 
 # ============================================================
-# STEP 14: Cross-validation using proper pipeline
+# STEP 14: Supplementary cross-validation
+# SMOTE and scaling are fitted inside each fold. The imputation/encoding
+# representation was learned from the overall training partition before this
+# supplementary CV stage; the completely untouched test set remains the main
+# final evaluation evidence documented in the report.
 # ============================================================
 
 print("\n" + "=" * 70)
-print("CROSS VALIDATION — 5-Fold Recall Scores")
+print("SUPPLEMENTARY CROSS VALIDATION — 5-Fold Recall Scores")
 print("=" * 70)
 
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
@@ -524,21 +548,23 @@ print("Saved: cross_validation_recall.png")
 
 
 # ============================================================
-# STEP 16: Save best model based on fraud recall
+# STEP 16: Save the highest-recall model and deployed XGBoost model
 # ============================================================
 
 best_index = np.argmax(recalls)
 best_model_name = model_names[best_index]
 best_model = saved_models[best_model_name]
 
-joblib.dump(best_model, "best_baseline_model.pkl")
+joblib.dump(best_model, "highest_recall_baseline_model.pkl")
+joblib.dump(saved_models["XGBoost"], "deployed_xgboost_model.pkl")
 
 print("\n" + "=" * 70)
-print("BEST BASELINE MODEL")
+print("HIGHEST-RECALL BASELINE MODEL")
 print("=" * 70)
 print(f"Best model based on fraud recall: {best_model_name}")
 print(f"Fraud recall: {recalls[best_index]:.4f}")
-print("Saved: best_baseline_model.pkl")
+print("Saved: highest_recall_baseline_model.pkl")
+print("Saved: deployed_xgboost_model.pkl")
 
 
 print("\nTraining and evaluation completed successfully.")

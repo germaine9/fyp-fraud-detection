@@ -14,6 +14,8 @@ import hashlib
 import json
 import joblib
 import os
+import tempfile
+import threading
 import pandas as pd
 from datetime import datetime, timezone
 
@@ -21,6 +23,12 @@ from datetime import datetime, timezone
 CHAIN_FILE = "blockchain_data.json"
 DIFFICULTY = 3
 MODEL_VERSION = "XGBoost_v1.0"
+_WRITE_LOCK = threading.RLock()
+
+
+def _canonical_json(data) -> str:
+    """Return a deterministic JSON representation for hashing and persistence."""
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
 
 
 # ============================================================
@@ -64,8 +72,8 @@ class Block:
             "nonce": self.nonce
         }
 
-        block_string = json.dumps(block_data, sort_keys=True)
-        return hashlib.sha256(block_string.encode()).hexdigest()
+        block_string = _canonical_json(block_data)
+        return hashlib.sha256(block_string.encode("utf-8")).hexdigest()
 
     def mine(self, difficulty=DIFFICULTY):
         target = "0" * difficulty
@@ -140,15 +148,26 @@ class Blockchain:
         return self.chain[-1]
 
     def add_record(self, claim_data: dict, fraud_score: float, source="Prediction"):
-        claim_string = json.dumps(claim_data, sort_keys=True)
-        claim_hash = hashlib.sha256(claim_string.encode()).hexdigest()
+        if not isinstance(claim_data, dict) or not claim_data:
+            raise ValueError("claim_data must be a non-empty dictionary.")
 
-        decision = "Fraudulent" if fraud_score >= 0.5 else "Legitimate"
+        is_valid, message = self.verify_integrity()
+        if not is_valid:
+            raise RuntimeError(f"Cannot append to an invalid ledger: {message}")
+
+        claim_string = _canonical_json(claim_data)
+        claim_hash = hashlib.sha256(claim_string.encode("utf-8")).hexdigest()
+
+        score = float(fraud_score)
+        if not 0.0 <= score <= 1.0:
+            raise ValueError("fraud_score must be between 0 and 1.")
+
+        decision = "Fraudulent" if score >= 0.5 else "Legitimate"
 
         new_block = Block(
             index=len(self.chain),
             claim_hash=claim_hash,
-            fraud_score=fraud_score,
+            fraud_score=score,
             decision=decision,
             previous_hash=self.get_last_block().hash,
             model_version=MODEL_VERSION,
@@ -157,15 +176,26 @@ class Blockchain:
 
         new_block.mine(self.difficulty)
 
-        self.chain.append(new_block)
-        self._save_chain()
+        with _WRITE_LOCK:
+            self.chain.append(new_block)
+            try:
+                self._save_chain()
+            except Exception:
+                self.chain.pop()
+                raise
 
         return new_block
 
     def verify_integrity(self):
         target = "0" * self.difficulty
 
+        if not self.chain:
+            return False, "Ledger is empty"
+
         for i, block in enumerate(self.chain):
+            if block.index != i:
+                return False, f"Unexpected block index at position {i}"
+
             recalculated_hash = block.compute_hash()
 
             if recalculated_hash != block.hash:
@@ -174,35 +204,59 @@ class Blockchain:
             if not block.hash.startswith(target):
                 return False, f"Block {i} failed Proof-of-Work check"
 
-            if i > 0:
+            if i == 0:
+                if block.decision != "GENESIS" or block.previous_hash != "0":
+                    return False, "Invalid genesis block"
+            else:
                 previous_block = self.chain[i - 1]
-
                 if block.previous_hash != previous_block.hash:
                     return False, f"Chain broken at block {i} — previous hash mismatch"
 
         return True, "Chain integrity verified — all blocks valid"
 
     def _save_chain(self):
+        """Persist the ledger using an atomic replace to reduce partial-file corruption."""
+        target_path = os.path.abspath(self.chain_file)
+        target_dir = os.path.dirname(target_path) or "."
+        os.makedirs(target_dir, exist_ok=True)
+        payload = [block.to_dict() for block in self.chain]
+
+        temp_path = None
         try:
-            with open(self.chain_file, "w") as file:
-                json.dump([block.to_dict() for block in self.chain], file, indent=2)
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", delete=False, dir=target_dir, suffix=".tmp"
+            ) as temp_file:
+                temp_path = temp_file.name
+                json.dump(payload, temp_file, indent=2)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            os.replace(temp_path, target_path)
         except Exception as error:
-            print(f"Warning: could not save chain — {error}")
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise IOError(f"Could not save blockchain ledger: {error}") from error
 
     def _load_chain(self):
         if not os.path.exists(self.chain_file):
             return False
 
         try:
-            with open(self.chain_file, "r") as file:
+            with open(self.chain_file, "r", encoding="utf-8") as file:
                 data = json.load(file)
 
+            if not isinstance(data, list) or not data:
+                raise ValueError("Ledger file must contain a non-empty list of blocks.")
+
             self.chain = [Block.from_dict(item) for item in data]
+            is_valid, message = self.verify_integrity()
+            if not is_valid:
+                raise ValueError(message)
             return True
 
         except Exception as error:
-            print(f"Warning: could not load chain ({error}). Starting fresh.")
-            return False
+            raise RuntimeError(
+                f"Existing blockchain ledger could not be loaded safely: {error}"
+            ) from error
 
     def get_chain_as_dataframe(self):
         rows = []
@@ -313,12 +367,13 @@ if __name__ == "__main__":
     sample_size = min(20, len(X_scaled))
 
     for i in range(sample_size):
-        claim_data = {
-            "claim_id": str(claim_ids[i]),
-            "provider_id": str(provider_ids[i]),
-            "fraud_score": round(float(fraud_probs[i]), 4),
-            "model_version": MODEL_VERSION
-        }
+        claim_data = df.iloc[i].drop(labels=["Is_Fraud"], errors="ignore").to_dict()
+        claim_data.update({
+            "Claim_ID": str(claim_ids[i]),
+            "Provider_ID": str(provider_ids[i]),
+            "Fraud_Score": round(float(fraud_probs[i]), 4),
+            "Model_Version": MODEL_VERSION
+        })
 
         bc.add_record(
             claim_data=claim_data,
@@ -349,12 +404,13 @@ if __name__ == "__main__":
     bc_test = Blockchain(chain_file=test_chain_file)
 
     for i in range(5):
-        claim_data = {
-            "claim_id": str(claim_ids[i]),
-            "provider_id": str(provider_ids[i]),
-            "fraud_score": round(float(fraud_probs[i]), 4),
-            "model_version": MODEL_VERSION
-        }
+        claim_data = df.iloc[i].drop(labels=["Is_Fraud"], errors="ignore").to_dict()
+        claim_data.update({
+            "Claim_ID": str(claim_ids[i]),
+            "Provider_ID": str(provider_ids[i]),
+            "Fraud_Score": round(float(fraud_probs[i]), 4),
+            "Model_Version": MODEL_VERSION
+        })
 
         bc_test.add_record(
             claim_data=claim_data,

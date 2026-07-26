@@ -25,6 +25,23 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers import Adam
 
 
+DATASET_FILE = "healthcare_fraud_detection.csv"
+DATASET_SOURCE = "https://www.kaggle.com/datasets/esseasd/healthcare-fraud-detection-dataset"
+REQUIRED_COLUMNS = {
+    "Is_Fraud", "Claim_Amount", "Approved_Amount",
+    "Number_of_Claims_Per_Provider_Monthly"
+}
+
+
+def validate_dataset(dataframe: pd.DataFrame) -> None:
+    missing = sorted(REQUIRED_COLUMNS.difference(dataframe.columns))
+    if missing:
+        raise ValueError(f"Dataset is missing required columns: {missing}")
+    labels = set(pd.Series(dataframe["Is_Fraud"]).dropna().unique().tolist())
+    if not labels.issubset({0, 1}) or not labels:
+        raise ValueError("Is_Fraud must contain binary labels 0 and 1.")
+
+
 # ============================================================
 # STEP 0: Reproducibility
 # ============================================================
@@ -37,7 +54,9 @@ tf.random.set_seed(42)
 # STEP 1: Load dataset
 # ============================================================
 
-df = pd.read_csv("healthcare_fraud_detection.csv")
+df = pd.read_csv(DATASET_FILE)
+validate_dataset(df)
+print(f"Dataset source: {DATASET_SOURCE}")
 
 print("Dataset loaded:", df.shape)
 print("\nClass distribution:")
@@ -191,12 +210,12 @@ def transform_preprocess(X_data, preprocess_info):
 X_train_processed, preprocess_info = fit_preprocess_train(X_train)
 X_test_processed = transform_preprocess(X_test, preprocess_info)
 
-joblib.dump(preprocess_info, "preprocess_info.pkl")
+joblib.dump(preprocess_info, "ann_preprocess_info.pkl")
 
 print("\nPreprocessing completed.")
 print("Processed training shape:", X_train_processed.shape)
 print("Processed testing shape:", X_test_processed.shape)
-print("Saved: preprocess_info.pkl")
+print("Saved: ann_preprocess_info.pkl")
 
 
 # ============================================================
@@ -231,9 +250,9 @@ scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train_smote)
 X_test_scaled = scaler.transform(X_test_processed)
 
-joblib.dump(scaler, "scaler.pkl")
+joblib.dump(scaler, "ann_scaler.pkl")
 
-print("\nScaler saved to scaler.pkl")
+print("\nANN scaler saved to ann_scaler.pkl")
 
 
 # ============================================================
@@ -286,6 +305,8 @@ early_stop = EarlyStopping(
 )
 
 print("\nTraining ANN...")
+print("Note: validation_split is taken from the SMOTE-balanced training matrix. ")
+print("The held-out test set remains untouched and is used only for final evaluation.")
 
 history = model.fit(
     X_train_scaled,
@@ -309,12 +330,13 @@ print("=" * 60)
 y_pred_prob = model.predict(X_test_scaled).flatten()
 y_pred = (y_pred_prob >= 0.5).astype(int)
 
-report_dict = classification_report(y_test, y_pred, output_dict=True)
+report_dict = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
 
 print(classification_report(
     y_test,
     y_pred,
-    target_names=["Legitimate", "Fraud"]
+    target_names=["Legitimate", "Fraud"],
+    zero_division=0
 ))
 
 acc = accuracy_score(y_test, y_pred)
@@ -472,4 +494,4 @@ model.save("ann_model.keras")
 
 print("\nANN model saved to ann_model.keras")
 print("Training and evaluation completed successfully.")
-print("Next: update your Streamlit app.py to load ann_model.keras, preprocess_info.pkl, and scaler.pkl.")
+print("The deployed Streamlit application continues to use the XGBoost preprocessing artefacts produced by main_fixed.py.")

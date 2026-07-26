@@ -1,5 +1,5 @@
 # app_polished.py
-# Streamlit FYP prototype — polished final version
+# Streamlit FYP prototype — full polished corrected version
 # Run with: streamlit run app_polished.py
 
 import streamlit as st
@@ -7,6 +7,8 @@ import streamlit.components.v1 as components
 import pandas as pd
 import joblib
 import html
+import hashlib
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
@@ -618,21 +620,54 @@ except Exception as error:
 # Session state
 # ------------------------------------------------------------
 
-# Replace old/simple in-memory blockchain objects if they exist from a previous app version.
+# Initialise the corrected persistent blockchain-style ledger.
+# If an old or corrupted ledger cannot be verified, stop instead of silently
+# overwriting it. Back up and remove blockchain_data.json only when starting
+# an intentionally fresh demonstration ledger.
 if (
     "blockchain" not in st.session_state
     or not hasattr(st.session_state.blockchain, "verify_integrity")
     or not hasattr(st.session_state.blockchain, "add_record")
 ):
-    st.session_state.blockchain = Blockchain(chain_file=CHAIN_FILE)
-if "total_claims" not in st.session_state:
-    st.session_state.total_claims = 0
-if "fraud_claims" not in st.session_state:
-    st.session_state.fraud_claims = 0
+    try:
+        st.session_state.blockchain = Blockchain(chain_file=CHAIN_FILE)
+    except Exception as error:
+        st.error(f"The existing blockchain ledger could not be loaded safely: {error}")
+        st.info("Back up or remove blockchain_data.json before starting a new demo ledger.")
+        st.stop()
+
 if "sample_type" not in st.session_state:
     st.session_state.sample_type = "normal"
+if "recorded_fingerprints" not in st.session_state:
+    st.session_state.recorded_fingerprints = set()
+if "bulk_results" not in st.session_state:
+    st.session_state.bulk_results = None
+if "bulk_upload_key" not in st.session_state:
+    st.session_state.bulk_upload_key = None
 
 bc = st.session_state.blockchain
+
+# Input constraints for a controlled academic prototype.
+REQUIRED_INPUT_COLUMNS = [
+    "Patient_Age",
+    "Patient_Gender",
+    "Diagnosis_Code",
+    "Procedure_Code",
+    "Claim_Amount",
+    "Approved_Amount",
+    "Insurance_Type",
+    "Days_Between_Service_and_Claim",
+    "Number_of_Claims_Per_Provider_Monthly",
+    "Provider_Specialty",
+    "Patient_State",
+    "Claim_Status",
+    "Length_of_Stay",
+    "Visit_Type",
+    "Chronic_Condition_Flag",
+    "Prior_Visits_12m",
+]
+MAX_CSV_ROWS = 5000
+MAX_CSV_BYTES = 10 * 1024 * 1024
 
 
 # ------------------------------------------------------------
@@ -642,6 +677,55 @@ bc = st.session_state.blockchain
 def safe_text(value) -> str:
     """Escape values before injecting them into custom HTML."""
     return html.escape(str(value))
+
+
+def submission_fingerprint(data) -> str:
+    """Create a deterministic fingerprint to prevent accidental duplicate records."""
+    payload = json.dumps(
+        data,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def validate_claim_values(input_df):
+    """Validate required columns and basic numeric ranges before inference."""
+    missing_columns = [
+        column for column in REQUIRED_INPUT_COLUMNS
+        if column not in input_df.columns
+    ]
+    if missing_columns:
+        raise ValueError(f"Missing required columns: {missing_columns}")
+
+    non_negative_numeric_columns = [
+        "Patient_Age",
+        "Claim_Amount",
+        "Approved_Amount",
+        "Days_Between_Service_and_Claim",
+        "Number_of_Claims_Per_Provider_Monthly",
+        "Length_of_Stay",
+        "Prior_Visits_12m",
+    ]
+
+    for column in non_negative_numeric_columns:
+        converted = pd.to_numeric(input_df[column], errors="coerce")
+        if converted.isna().any():
+            raise ValueError(f"Column '{column}' contains missing or non-numeric values.")
+        if (converted < 0).any():
+            raise ValueError(f"Column '{column}' contains negative values.")
+
+    patient_ages = pd.to_numeric(input_df["Patient_Age"], errors="coerce")
+    if (patient_ages > 120).any():
+        raise ValueError("Patient_Age must be between 0 and 120.")
+
+    chronic_values = pd.to_numeric(
+        input_df["Chronic_Condition_Flag"],
+        errors="coerce",
+    )
+    if chronic_values.isna().any() or not chronic_values.isin([0, 1]).all():
+        raise ValueError("Chronic_Condition_Flag must contain only 0 or 1.")
 
 
 def short_hash(value, length=18) -> str:
@@ -690,6 +774,7 @@ def risk_level(score):
 
 
 def preprocess_claims(input_df):
+    validate_claim_values(input_df)
     df = input_df.copy()
     df = df.drop(columns=["Provider_ID", "Claim_ID", "Claim_Submission_Date", "Is_Fraud"], errors="ignore")
 
@@ -773,6 +858,7 @@ def show_block(block):
     with col_b:
         st.write(f"**Fraud score:** {block.fraud_score}")
         st.write(f"**Source:** {block.source}")
+        st.write(f"**Model version:** {getattr(block, 'model_version', 'N/A')}")
         st.write(f"**Nonce:** {nonce}")
 
     st.write("**Claim hash**")
@@ -1159,10 +1245,10 @@ st.sidebar.divider()
 valid, _ = verify_blockchain(bc)
 total, fraud, rate = ledger_counts(bc)
 
-st.sidebar.write("**Session stats**")
+st.sidebar.write("**Ledger statistics**")
 st.sidebar.markdown(f"""
 <div style="font-size:0.87rem; line-height:2; color:#2b2118;">
-🔢 Claims processed: <b>{total}</b><br>
+🔢 Records stored: <b>{total}</b><br>
 🚨 Fraud flagged: <b>{fraud}</b><br>
 📊 Fraud rate: <b>{rate:.1f}%</b><br>
 🔗 Ledger blocks: <b>{len(bc.chain)}</b><br>
@@ -1179,6 +1265,9 @@ with st.sidebar.expander("Demo controls"):
         try:
             Path(CHAIN_FILE).unlink(missing_ok=True)
             st.session_state.blockchain = Blockchain(chain_file=CHAIN_FILE)
+            st.session_state.recorded_fingerprints = set()
+            st.session_state.bulk_results = None
+            st.session_state.bulk_upload_key = None
             st.session_state.current_page = "Home"
             st.success("Demo ledger reset.")
             st.rerun()
@@ -1284,7 +1373,7 @@ if page == "Home":
 
     st.divider()
 
-    st.subheader("Live session overview")
+    st.subheader("Current ledger overview")
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Claims Processed", total)
@@ -1399,9 +1488,13 @@ elif page == "Single Claim":
                                              index=[0, 1].index(default["chronic_condition"]),
                                              format_func=lambda x: "Yes" if x == 1 else "No")
         with col9:
-            prior_visits = st.number_input("Prior Visits in 12 Months", min_value=0, value=default["prior_visits"])
+            prior_visits = st.number_input(
+                "Prior Visits in 12 Months",
+                min_value=0,
+                value=default["prior_visits"]
+            )
 
-            submitted = st.form_submit_button(
+        submitted = st.form_submit_button(
             "🔍 Run Prediction",
             use_container_width=True
         )
@@ -1432,62 +1525,88 @@ elif page == "Single Claim":
             st.rerun()
 
     if submitted:
-        claim_data = make_claim_dict(
-            patient_age,
-            patient_gender,
-            diagnosis_code,
-            procedure_code,
-            claim_amount,
-            approved_amount,
-            insurance_type,
-            days_between,
-            monthly_claims,
-            provider_specialty,
-            patient_state,
-            claim_status,
-            length_of_stay,
-            visit_type,
-            chronic_condition,
-            prior_visits
-        )
+        claim_id = claim_id.strip()
+        provider_id = provider_id.strip()
+        diagnosis_code = diagnosis_code.strip()
+        procedure_code = procedure_code.strip()
+        patient_state = patient_state.strip().upper()
 
-    if submitted:
-        claim_data = make_claim_dict(
-            patient_age, patient_gender, diagnosis_code, procedure_code,
-            claim_amount, approved_amount, insurance_type, days_between,
-            monthly_claims, provider_specialty, patient_state, claim_status,
-            length_of_stay, visit_type, chronic_condition, prior_visits
-        )
-
-        scores, decisions, risks = run_prediction(pd.DataFrame([claim_data]))
-        score = float(scores[0])
-        decision = decisions[0]
-        risk = risks[0]
-
-        block = bc.add_record(
-            {"Claim_ID": claim_id, "Provider_ID": provider_id,
-             "Fraud_Score": round(score, 4), "Decision": decision},
-            score, source="Single Claim"
-        )
-
-
-        st.divider()
-        st.subheader("Prediction result")
-
-        if decision == "Fraudulent":
-            st.markdown(f'<div class="result-fraud"><p>🚨 FRAUDULENT — This claim has been flagged. Fraud probability: {score * 100:.2f}% · Risk level: {risk}</p></div>', unsafe_allow_html=True)
+        if not claim_id or not provider_id:
+            st.error("Claim ID and Provider ID are required.")
+        elif not diagnosis_code or not procedure_code:
+            st.error("Diagnosis Code and Procedure Code are required.")
+        elif not patient_state:
+            st.error("Patient State is required.")
         else:
-            st.markdown(f'<div class="result-legit"><p>✅ LEGITIMATE — This claim appears valid. Fraud probability: {score * 100:.2f}% · Risk level: {risk}</p></div>', unsafe_allow_html=True)
+            claim_data = make_claim_dict(
+                patient_age, patient_gender, diagnosis_code, procedure_code,
+                claim_amount, approved_amount, insurance_type, days_between,
+                monthly_claims, provider_specialty, patient_state, claim_status,
+                length_of_stay, visit_type, chronic_condition, prior_visits
+            )
 
-        r1, r2, r3 = st.columns(3)
-        r1.metric("Fraud Probability", f"{score * 100:.2f}%")
-        r2.metric("Decision", decision)
-        r3.metric("Risk Level", risk)
+            try:
+                scores, decisions, risks = run_prediction(pd.DataFrame([claim_data]))
+                score = float(scores[0])
+                decision = decisions[0]
+                risk = risks[0]
 
-        st.progress(min(score, 1.0))
+                # Hash the complete submitted claim and prediction metadata rather than
+                # storing only the identifiers. Raw values are not written to the ledger;
+                # blockchain.py stores only the resulting SHA-256 claim hash.
+                audit_record = {
+                    "Claim_ID": claim_id,
+                    "Provider_ID": provider_id,
+                    **claim_data,
+                    "Fraud_Score": round(score, 4),
+                    "Decision": decision,
+                    "Input_Source": "Single Claim",
+                }
+                record_fingerprint = submission_fingerprint(audit_record)
 
-        with st.expander("⛓️ Blockchain record created", expanded=True):
-            show_block(block)
+                if record_fingerprint in st.session_state.recorded_fingerprints:
+                    block = None
+                    st.warning(
+                        "This exact claim submission has already been recorded during "
+                        "the current app session, so another ledger block was not created."
+                    )
+                else:
+                    block = bc.add_record(
+                        audit_record,
+                        score,
+                        source="Single Claim"
+                    )
+                    st.session_state.recorded_fingerprints.add(record_fingerprint)
+
+                st.divider()
+                st.subheader("Prediction result")
+
+                if decision == "Fraudulent":
+                    st.markdown(
+                        f'<div class="result-fraud"><p>🚨 FRAUDULENT — This claim has been flagged. '
+                        f'Fraud probability: {score * 100:.2f}% · Risk level: {risk}</p></div>',
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        f'<div class="result-legit"><p>✅ LEGITIMATE — This claim appears valid. '
+                        f'Fraud probability: {score * 100:.2f}% · Risk level: {risk}</p></div>',
+                        unsafe_allow_html=True
+                    )
+
+                r1, r2, r3 = st.columns(3)
+                r1.metric("Fraud Probability", f"{score * 100:.2f}%")
+                r2.metric("Decision", decision)
+                r3.metric("Risk Level", risk)
+
+                st.progress(min(score, 1.0))
+
+                if block is not None:
+                    with st.expander("⛓️ Blockchain record created", expanded=True):
+                        show_block(block)
+
+            except Exception as error:
+                st.error(f"Prediction failed: {error}")
 
 
 # ------------------------------------------------------------
@@ -1497,47 +1616,111 @@ elif page == "Single Claim":
 elif page == "Bulk Upload":
 
     st.title("Bulk CSV Prediction")
-    st.write("Upload a CSV file containing multiple healthcare claim records.")
+    st.write(
+        f"Upload a CSV file containing up to {MAX_CSV_ROWS:,} synthetic or anonymised "
+        "healthcare claim records."
+    )
 
     uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 
     if uploaded_file is not None:
+        if uploaded_file.size > MAX_CSV_BYTES:
+            st.error("The uploaded CSV exceeds the 10 MB demonstration limit.")
+            st.stop()
+
+        upload_bytes = uploaded_file.getvalue()
+        upload_key = hashlib.sha256(upload_bytes).hexdigest()
+        if upload_key != st.session_state.bulk_upload_key:
+            st.session_state.bulk_results = None
+            st.session_state.bulk_upload_key = upload_key
+
         try:
+            uploaded_file.seek(0)
             raw_df = pd.read_csv(uploaded_file)
+
+            if raw_df.empty:
+                raise ValueError("The uploaded CSV contains no claim records.")
+            if len(raw_df) > MAX_CSV_ROWS:
+                raise ValueError(
+                    f"The uploaded CSV contains more than {MAX_CSV_ROWS:,} rows."
+                )
+
+            validate_claim_values(raw_df)
+
         except Exception as error:
-            st.error(f"Could not read CSV file: {error}")
+            st.error(f"CSV validation failed: {error}")
             st.stop()
 
         st.subheader("Uploaded data preview")
 
-        # FIX: Use components.v1.html() with self-contained styled table
-        # instead of st.dataframe() which renders blank due to theme conflicts
         preview_rows = min(5, len(raw_df))
         preview_height = estimate_table_height(preview_rows)
-        components.html(dataframe_html(raw_df, max_rows=5), height=preview_height, scrolling=False)
+        components.html(
+            dataframe_html(raw_df, max_rows=5),
+            height=preview_height,
+            scrolling=False
+        )
 
         if st.button("▶️ Run Bulk Prediction"):
-            scores, decisions, risks = run_prediction(raw_df)
+            try:
+                scores, decisions, risks = run_prediction(raw_df)
 
-            results_df = raw_df.copy()
-            results_df["Fraud_Probability"] = [round(float(score), 4) for score in scores]
-            results_df["Fraud_Probability_%"] = [f"{float(score) * 100:.2f}%" for score in scores]
-            results_df["Decision"] = decisions
-            results_df["Risk_Level"] = risks
+                results_df = raw_df.copy()
+                results_df["Fraud_Probability"] = [
+                    round(float(score), 4) for score in scores
+                ]
+                results_df["Fraud_Probability_%"] = [
+                    f"{float(score) * 100:.2f}%" for score in scores
+                ]
+                results_df["Decision"] = decisions
+                results_df["Risk_Level"] = risks
 
-            for i, score in enumerate(scores):
-                claim_id = str(raw_df["Claim_ID"].iloc[i]) if "Claim_ID" in raw_df.columns else f"ROW_{i}"
-                provider_id = str(raw_df["Provider_ID"].iloc[i]) if "Provider_ID" in raw_df.columns else "UNKNOWN"
-                bc.add_record(
-                    {"Claim_ID": claim_id, "Provider_ID": provider_id,
-                     "Fraud_Score": round(float(score), 4), "Decision": decisions[i]},
-                    float(score), source="Bulk CSV"
+                recorded_count = 0
+                duplicate_count = 0
+
+                for index, score in enumerate(scores):
+                    claim_record = raw_df.iloc[index].to_dict()
+                    claim_record.update({
+                        "Fraud_Score": round(float(score), 4),
+                        "Decision": decisions[index],
+                        "Risk_Level": risks[index],
+                        "Input_Source": "Bulk CSV",
+                    })
+                    record_fingerprint = submission_fingerprint(claim_record)
+
+                    if record_fingerprint in st.session_state.recorded_fingerprints:
+                        duplicate_count += 1
+                        continue
+
+                    bc.add_record(
+                        claim_record,
+                        float(score),
+                        source="Bulk CSV"
+                    )
+                    st.session_state.recorded_fingerprints.add(record_fingerprint)
+                    recorded_count += 1
+
+                st.session_state.bulk_results = results_df
+
+                message = (
+                    f"Completed {len(results_df):,} predictions and created "
+                    f"{recorded_count:,} new audit records."
                 )
+                if duplicate_count:
+                    message += (
+                        f" {duplicate_count:,} exact duplicate submissions were not "
+                        "written again during this app session."
+                    )
+                st.success(message)
 
+            except Exception as error:
+                st.error(f"Bulk prediction failed: {error}")
+
+        if st.session_state.bulk_results is not None:
+            results_df = st.session_state.bulk_results
             total_b = len(results_df)
-            fraud_count = decisions.count("Fraudulent")
-            legitimate_count = decisions.count("Legitimate")
-
+            fraud_count = int((results_df["Decision"] == "Fraudulent").sum())
+            legitimate_count = int((results_df["Decision"] == "Legitimate").sum())
 
             st.divider()
             st.subheader("Bulk prediction summary")
@@ -1549,9 +1732,12 @@ elif page == "Bulk Upload":
 
             st.subheader("Prediction results")
 
-            # FIX: Use components.v1.html() for results table too
             results_height = estimate_table_height(len(results_df))
-            components.html(dataframe_html(results_df, highlight_fraud=True), height=results_height, scrolling=True)
+            components.html(
+                dataframe_html(results_df, highlight_fraud=True),
+                height=results_height,
+                scrolling=True
+            )
 
             st.download_button(
                 label="⬇️ Download Prediction Results",
@@ -1595,7 +1781,7 @@ elif page == "OCR Scanner":
 elif page == "Blockchain":
 
     st.title("Blockchain Records")
-    st.write("Records created during the current session, stored as a SHA-256 linked hash chain.")
+    st.write("Prediction records stored in a local, persistent SHA-256 linked audit ledger.")
 
     is_valid, message = verify_blockchain(bc)
     if is_valid:
@@ -1633,7 +1819,7 @@ elif page == "Blockchain":
         value=0
     )
 
-    selected_block = bc.chain[block_index]
+    selected_block = bc.chain[int(block_index)]
 
     with st.container(border=True):
         show_block(selected_block)
@@ -1714,11 +1900,12 @@ elif page == "About":
     <div class="info-card">
         <h3>🏥 MediGuard — Healthcare Fraud Detection System</h3>
         <p>
-        This system is developed as a final year project prototype. It uses a fixed backend
-        fraud-detection classifier to classify healthcare insurance claims as legitimate or
-        potentially fraudulent. The model configuration is controlled by the system developer
-        and is not selectable by end users. Detailed model-comparison evidence is available on
-        the Model Results page for transparency and assessment.
+        This system is developed as a final year project decision-support prototype. It uses a
+        fixed backend fraud-detection classifier to screen healthcare insurance claims as
+        legitimate or potentially fraudulent. The output is not an autonomous fraud judgement,
+        and flagged claims still require human investigation. The model configuration is
+        controlled by the system developer and is not selectable by end users. Detailed
+        model-comparison evidence is available on the Model Results page for transparency.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -1740,10 +1927,14 @@ elif page == "About":
     with col2:
         st.subheader("Limitations")
         st.write("""
-        The system is not connected to real hospital or insurance databases.
-        The blockchain component is a prototype simulation demonstrating
-        hashing, block linking, nonce-based Proof-of-Work, and tamper-evident record keeping.
-        It is not a deployed distributed blockchain network.
+        The system is not connected to real hospital or insurance databases and does not
+        implement production authentication or role-based access control. The current dataset
+        is treated as educational synthetic or anonymised data and has not been externally
+        validated on operational healthcare claims. The blockchain component is a local
+        blockchain-style audit ledger demonstrating hashing, block linking, nonce-based
+        Proof-of-Work, persistence, and tamper detection; it is not a distributed network,
+        smart-contract platform, or guarantee that the original claim input was truthful.
+        OCR-assisted values must be reviewed and corrected by a user before prediction.
         """)
 
 # End of app_polished.py
