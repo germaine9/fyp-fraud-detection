@@ -14,7 +14,7 @@
   {
     "index": 1,
     "claim_hash": "220ae5ecda5515bc885ef2452edb381c0f774c4182698f6ac30a318f318cbb06",
-    "fraud_score": 0.12,
+    "fraud_score": 0.00,
     "decision": "Legitimate",
     "timestamp": "2026-07-26T07:25:19Z",
     "model_version": "XGBoost_v1.0",
