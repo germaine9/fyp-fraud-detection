@@ -9,9 +9,21 @@ import joblib
 import html
 import hashlib
 import json
+import tempfile
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
+
+
+def clean_blockchain_error(error) -> str:
+    """Return a concise blockchain verification error without repeated prefixes."""
+    message = str(error).strip()
+    prefix = "Existing blockchain ledger could not be loaded safely:"
+
+    while message.lower().startswith(prefix.lower()):
+        message = message[len(prefix):].strip()
+
+    return message or error.__class__.__name__
 
 
 # ------------------------------------------------------------
@@ -620,21 +632,54 @@ except Exception as error:
 # Session state
 # ------------------------------------------------------------
 
-# Initialise the corrected persistent blockchain-style ledger.
-# If an old or corrupted ledger cannot be verified, stop instead of silently
-# overwriting it. Back up and remove blockchain_data.json only when starting
-# an intentionally fresh demonstration ledger.
+# Load the ledger for display without forcing a visible verification result.
+# This is backward-compatible with both the original blockchain.py and the newer
+# version that supports verify_on_load/allow_invalid_load.
+def initialise_ledger_for_interface():
+    try:
+        try:
+            # Newer blockchain.py: load records without automatically verifying them.
+            return Blockchain(
+                chain_file=CHAIN_FILE,
+                verify_on_load=False,
+                allow_invalid_load=True,
+            ), None
+        except TypeError as error:
+            # Older blockchain.py: these optional constructor parameters do not exist.
+            if "unexpected keyword argument" not in str(error):
+                raise
+            return Blockchain(chain_file=CHAIN_FILE), None
+    except Exception as load_error:
+        # A strict older Blockchain constructor rejects a tampered ledger during startup.
+        # Create an isolated display-only object, then copy the raw blocks into memory
+        # without touching blockchain_data.json. Writes are routed through
+        # add_verified_record(), so this fallback can never overwrite the saved ledger.
+        fallback_path = Path(tempfile.gettempdir()) / "mediguard_display_ledger.json"
+        fallback_path.unlink(missing_ok=True)
+        fallback = Blockchain(chain_file=str(fallback_path))
+
+        try:
+            with open(CHAIN_FILE, "r", encoding="utf-8") as ledger_file:
+                raw_blocks = json.load(ledger_file)
+
+            if isinstance(raw_blocks, list) and raw_blocks:
+                block_class = type(fallback.chain[0])
+                fallback.chain = [block_class.from_dict(item) for item in raw_blocks]
+        except Exception:
+            # If the file is malformed, keep the isolated genesis block for display.
+            pass
+
+        return fallback, clean_blockchain_error(load_error)
+
+
 if (
     "blockchain" not in st.session_state
     or not hasattr(st.session_state.blockchain, "verify_integrity")
     or not hasattr(st.session_state.blockchain, "add_record")
 ):
-    try:
-        st.session_state.blockchain = Blockchain(chain_file=CHAIN_FILE)
-    except Exception as error:
-        st.error(f"The existing blockchain ledger could not be loaded safely: {error}")
-        st.info("Back up or remove blockchain_data.json before starting a new demo ledger.")
-        st.stop()
+    loaded_blockchain, startup_ledger_error = initialise_ledger_for_interface()
+    st.session_state.blockchain = loaded_blockchain
+    st.session_state.startup_ledger_error = startup_ledger_error
 
 if "sample_type" not in st.session_state:
     st.session_state.sample_type = "normal"
@@ -754,6 +799,48 @@ def verify_blockchain(blockchain):
     if hasattr(blockchain, "verify_chain"):
         return blockchain.verify_chain()
     return False, "Blockchain object does not provide an integrity verification method."
+
+
+def verify_saved_blockchain():
+    """Verify the persistent JSON ledger only when explicitly requested."""
+    if hasattr(Blockchain, "verify_saved_file"):
+        is_valid, message, saved_blockchain = Blockchain.verify_saved_file(
+            chain_file=CHAIN_FILE
+        )
+        if not is_valid:
+            message = clean_blockchain_error(message)
+        return is_valid, message, saved_blockchain
+
+    # Backward compatibility for the original blockchain.py. Its constructor
+    # verifies the file while loading and raises an exception when tampering exists.
+    try:
+        saved_blockchain = Blockchain(chain_file=CHAIN_FILE)
+        is_valid, message = verify_blockchain(saved_blockchain)
+        return is_valid, message, saved_blockchain if is_valid else None
+    except Exception as error:
+        return False, clean_blockchain_error(error), None
+
+
+def add_verified_record(claim_data, fraud_score, source):
+    """Append only after the actual saved ledger passes integrity verification."""
+    global bc
+
+    is_valid, message, saved_blockchain = verify_saved_blockchain()
+    if not is_valid or saved_blockchain is None:
+        raise RuntimeError(
+            "The blockchain record was not created because the saved ledger failed "
+            f"integrity verification: {message}"
+        )
+
+    new_block = saved_blockchain.add_record(
+        claim_data,
+        fraud_score,
+        source=source,
+    )
+    st.session_state.blockchain = saved_blockchain
+    st.session_state.startup_ledger_error = None
+    bc = saved_blockchain
+    return new_block
 
 
 def ledger_counts(blockchain):
@@ -1242,18 +1329,16 @@ if selected_page != st.session_state.current_page:
 page = st.session_state.current_page
 
 st.sidebar.divider()
-valid, _ = verify_blockchain(bc)
 total, fraud, rate = ledger_counts(bc)
 
-st.sidebar.write("**Ledger statistics**")
+st.sidebar.write("**Loaded ledger statistics**")
 st.sidebar.markdown(f"""
 <div style="font-size:0.87rem; line-height:2; color:#2b2118;">
-🔢 Records stored: <b>{total}</b><br>
+🔢 Records loaded: <b>{total}</b><br>
 🚨 Fraud flagged: <b>{fraud}</b><br>
 📊 Fraud rate: <b>{rate:.1f}%</b><br>
 🔗 Ledger blocks: <b>{len(bc.chain)}</b><br>
-
-✅ Ledger status: <b>{'Valid' if valid else '⚠️ Invalid'}</b>
+🔍 Integrity: <b>Check manually on the Blockchain page</b>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1398,16 +1483,15 @@ if page == "Home":
         """, unsafe_allow_html=True)
 
     with right:
-        is_valid, status_message = verify_blockchain(bc)
         st.markdown("""
         <div class="demo-flow">
-            <h3>✅ Integrity status</h3>
+            <h3>🔍 Manual integrity check</h3>
         </div>
         """, unsafe_allow_html=True)
-        if is_valid:
-            st.success(status_message)
-        else:
-            st.error(status_message)
+        st.info(
+            "Open the Blockchain page and click Verify Blockchain Integrity to "
+            "check the saved JSON ledger."
+        )
 
 
 # ------------------------------------------------------------
@@ -1571,7 +1655,7 @@ elif page == "Single Claim":
                         "the current app session, so another ledger block was not created."
                     )
                 else:
-                    block = bc.add_record(
+                    block = add_verified_record(
                         audit_record,
                         score,
                         source="Single Claim"
@@ -1692,7 +1776,7 @@ elif page == "Bulk Upload":
                         duplicate_count += 1
                         continue
 
-                    bc.add_record(
+                    add_verified_record(
                         claim_record,
                         float(score),
                         source="Bulk CSV"
@@ -1779,26 +1863,24 @@ elif page == "OCR Scanner":
 # ------------------------------------------------------------
 
 elif page == "Blockchain":
-
+    
     st.title("Blockchain Records")
     st.write("Prediction records stored in a local, persistent SHA-256 linked audit ledger.")
 
-    is_valid, message = verify_blockchain(bc)
-    if is_valid:
-        st.success(f"✅ Integrity check passed — {message}")
-    else:
-        st.error(f"❌ Integrity check failed — {message}")
-
+    
     b1, b2, b3, b4 = st.columns(4)
     b1.metric("Ledger Blocks", len(bc.chain))
-    b2.metric("Stored Records", total)
+    b2.metric("Loaded Records", total)
     b3.metric("Fraudulent Records", fraud)
     b4.metric("Fraud Rate", f"{rate:.1f}%")
 
     st.subheader("Ledger table")
+    st.caption(
+        "The table shows the ledger copy currently loaded in this application session. "
+        "Treat the records as unverified until Verify Blockchain Integrity is clicked; "
+        "the button separately checks the latest blockchain_data.json file on disk."
+    )
 
-    # FIX: Use components.v1.html() with self-contained styled HTML
-    # instead of st.markdown(unsafe_allow_html=True) which was rendering raw HTML source
     ledger_height = estimate_table_height(len(bc.chain), max_px=500)
     components.html(ledger_html(), height=ledger_height, scrolling=True)
 
@@ -1810,30 +1892,50 @@ elif page == "Blockchain":
     )
 
     st.divider()
-    st.subheader("Inspect a block")
+    st.subheader("Inspect a loaded block")
 
-    block_index = st.number_input(
-        "Block index",
-        min_value=0,
-        max_value=len(bc.chain) - 1,
-        value=0
-    )
+    if bc.chain:
+        block_index = st.number_input(
+            "Block index",
+            min_value=0,
+            max_value=len(bc.chain) - 1,
+            value=0
+        )
 
-    selected_block = bc.chain[int(block_index)]
+        selected_block = bc.chain[int(block_index)]
 
-    with st.container(border=True):
-        show_block(selected_block)
+        with st.container(border=True):
+            show_block(selected_block)
 
-    if st.button("🔍 Verify Selected Block"):
-        recalculated_hash = compute_block_hash(selected_block)
-        stored_hash = get_block_hash(selected_block)
-        if recalculated_hash == stored_hash:
-            st.success("✅ Block is valid. The recalculated hash matches the stored hash.")
-        else:
-            st.error("❌ Block is invalid. The recalculated hash does not match the stored hash.")
+        if st.button("🔍 Verify Selected Loaded Block"):
+            recalculated_hash = compute_block_hash(selected_block)
+            stored_hash = get_block_hash(selected_block)
 
-        st.write("**Recalculated hash**")
-        st.markdown(f'<div class="hash-box">{safe_text(recalculated_hash)}</div>', unsafe_allow_html=True)
+            if recalculated_hash == stored_hash:
+                st.success(
+                    "✅ Loaded block is valid. The recalculated hash matches the stored hash."
+                )
+            else:
+                st.error(
+                    "❌ Loaded block is invalid. The recalculated hash does not match the stored hash."
+                )
+
+            st.write("**Stored hash**")
+            st.markdown(
+                f'<div class="hash-box">{safe_text(stored_hash)}</div>',
+                unsafe_allow_html=True
+            )
+            st.write("**Recalculated hash**")
+            st.markdown(
+                f'<div class="hash-box">{safe_text(recalculated_hash)}</div>',
+                unsafe_allow_html=True
+            )
+    else:
+        st.info(
+            "No loadable blocks are available in the current session. Click Verify "
+            "Blockchain Integrity to view the saved-ledger error, or intentionally "
+            "reset the demo ledger from the sidebar."
+        )
 
 
 # ------------------------------------------------------------
@@ -1936,5 +2038,3 @@ elif page == "About":
         smart-contract platform, or guarantee that the original claim input was truthful.
         OCR-assisted values must be reviewed and corrected by a user before prediction.
         """)
-
-# End of app_polished.py

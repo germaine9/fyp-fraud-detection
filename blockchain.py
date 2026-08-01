@@ -14,6 +14,7 @@ import hashlib
 import json
 import joblib
 import os
+import shutil
 import tempfile
 import threading
 import pandas as pd
@@ -27,8 +28,13 @@ _WRITE_LOCK = threading.RLock()
 
 
 def _canonical_json(data) -> str:
-    """Return a deterministic JSON representation for hashing and persistence."""
+    """Return the current deterministic JSON representation used for hashing."""
     return json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _legacy_json(data) -> str:
+    """Reproduce the JSON formatting used by the earlier project ledger."""
+    return json.dumps(data, sort_keys=True)
 
 
 # ============================================================
@@ -73,6 +79,22 @@ class Block:
         }
 
         block_string = _canonical_json(block_data)
+        return hashlib.sha256(block_string.encode("utf-8")).hexdigest()
+
+    def compute_legacy_hash(self):
+        """Recalculate hashes produced by the earlier blockchain.py version."""
+        block_data = {
+            "index": self.index,
+            "claim_hash": self.claim_hash,
+            "fraud_score": self.fraud_score,
+            "decision": self.decision,
+            "timestamp": self.timestamp,
+            "model_version": self.model_version,
+            "source": self.source,
+            "previous_hash": self.previous_hash,
+            "nonce": self.nonce
+        }
+        block_string = _legacy_json(block_data)
         return hashlib.sha256(block_string.encode("utf-8")).hexdigest()
 
     def mine(self, difficulty=DIFFICULTY):
@@ -121,13 +143,41 @@ class Block:
 # ============================================================
 
 class Blockchain:
-    def __init__(self, difficulty=DIFFICULTY, chain_file=CHAIN_FILE):
+    def __init__(
+        self,
+        difficulty=DIFFICULTY,
+        chain_file=CHAIN_FILE,
+        verify_on_load=True,
+        allow_invalid_load=False,
+        create_if_missing=True,
+    ):
+        """Load a blockchain-style ledger.
+
+        verify_on_load=True is the strict/default mode used by normal backend
+        operations. The Streamlit interface may use verify_on_load=False so the
+        page can open before the user manually clicks the verification button.
+
+        allow_invalid_load=True prevents a structurally damaged file from
+        crashing the whole interface. In that case, load_error is populated and
+        the in-memory chain remains empty. No damaged file is overwritten.
+        """
         self.difficulty = difficulty
         self.chain_file = chain_file
         self.chain = []
+        self.load_error = None
 
-        if not self._load_chain():
+        if os.path.exists(self.chain_file):
+            try:
+                self._load_chain(verify_on_load=verify_on_load)
+            except Exception as error:
+                if not allow_invalid_load:
+                    raise
+                self.load_error = str(error)
+                self.chain = []
+        elif create_if_missing:
             self._create_genesis_block()
+        else:
+            raise FileNotFoundError(f"Ledger file not found: {self.chain_file}")
 
     def _create_genesis_block(self):
         genesis = Block(
@@ -151,32 +201,57 @@ class Blockchain:
         if not isinstance(claim_data, dict) or not claim_data:
             raise ValueError("claim_data must be a non-empty dictionary.")
 
-        is_valid, message = self.verify_integrity()
-        if not is_valid:
-            raise RuntimeError(f"Cannot append to an invalid ledger: {message}")
-
-        claim_string = _canonical_json(claim_data)
-        claim_hash = hashlib.sha256(claim_string.encode("utf-8")).hexdigest()
-
         score = float(fraud_score)
         if not 0.0 <= score <= 1.0:
             raise ValueError("fraud_score must be between 0 and 1.")
 
-        decision = "Fraudulent" if score >= 0.5 else "Legitimate"
-
-        new_block = Block(
-            index=len(self.chain),
-            claim_hash=claim_hash,
-            fraud_score=score,
-            decision=decision,
-            previous_hash=self.get_last_block().hash,
-            model_version=MODEL_VERSION,
-            source=source
-        )
-
-        new_block.mine(self.difficulty)
-
         with _WRITE_LOCK:
+            # Validate the session copy first. This blocks writes when the app was
+            # started with an unverified or malformed ledger.
+            is_valid, message = self.verify_integrity()
+            if not is_valid:
+                raise RuntimeError(
+                    f"Cannot append to an invalid in-memory ledger: {message}"
+                )
+
+            # Validate the actual JSON file immediately before writing. This is
+            # essential when the file is edited externally after the app starts.
+            disk_valid, disk_message, disk_chain = self.verify_saved_file(
+                chain_file=self.chain_file,
+                difficulty=self.difficulty,
+            )
+            if not disk_valid or disk_chain is None:
+                raise RuntimeError(
+                    f"Cannot append because the saved ledger failed integrity verification: "
+                    f"{disk_message}"
+                )
+
+            # Prevent a stale Streamlit session from overwriting a newer or
+            # different valid ledger on disk.
+            if (
+                len(disk_chain.chain) != len(self.chain)
+                or disk_chain.get_last_block().hash != self.get_last_block().hash
+            ):
+                raise RuntimeError(
+                    "Cannot append because the saved ledger differs from the current "
+                    "application session. Reload the app or verify the ledger again."
+                )
+
+            claim_string = _canonical_json(claim_data)
+            claim_hash = hashlib.sha256(claim_string.encode("utf-8")).hexdigest()
+            decision = "Fraudulent" if score >= 0.5 else "Legitimate"
+
+            new_block = Block(
+                index=len(self.chain),
+                claim_hash=claim_hash,
+                fraud_score=score,
+                decision=decision,
+                previous_hash=self.get_last_block().hash,
+                model_version=MODEL_VERSION,
+                source=source
+            )
+            new_block.mine(self.difficulty)
+
             self.chain.append(new_block)
             try:
                 self._save_chain()
@@ -236,7 +311,43 @@ class Blockchain:
                 os.remove(temp_path)
             raise IOError(f"Could not save blockchain ledger: {error}") from error
 
-    def _load_chain(self):
+    def _verify_legacy_integrity(self):
+        """Validate a ledger produced by the earlier hashing format."""
+        target = "0" * self.difficulty
+
+        for i, block in enumerate(self.chain):
+            if block.compute_legacy_hash() != block.hash:
+                return False, f"Legacy hash mismatch at block {i}"
+
+            if not block.hash.startswith(target):
+                return False, f"Legacy block {i} failed Proof-of-Work check"
+
+            if i > 0 and block.previous_hash != self.chain[i - 1].hash:
+                return False, f"Legacy chain broken at block {i}"
+
+        return True, "Legacy chain verified"
+
+    def _migrate_legacy_chain(self):
+        """Back up a valid old ledger and re-mine it using the current hash format."""
+        source_path = os.path.abspath(self.chain_file)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        root, extension = os.path.splitext(source_path)
+        backup_path = f"{root}_legacy_backup_{timestamp}{extension or '.json'}"
+        shutil.copy2(source_path, backup_path)
+
+        previous_hash = "0"
+        for index, block in enumerate(self.chain):
+            block.index = index
+            block.previous_hash = previous_hash
+            block.nonce = 0
+            block.hash = block.compute_hash()
+            block.mine(self.difficulty)
+            previous_hash = block.hash
+
+        self._save_chain()
+        return backup_path
+
+    def _load_chain(self, verify_on_load=True):
         if not os.path.exists(self.chain_file):
             return False
 
@@ -248,15 +359,72 @@ class Blockchain:
                 raise ValueError("Ledger file must contain a non-empty list of blocks.")
 
             self.chain = [Block.from_dict(item) for item in data]
-            is_valid, message = self.verify_integrity()
-            if not is_valid:
-                raise ValueError(message)
-            return True
+
+            # Manual-verification UI mode: load the records without displaying or
+            # enforcing an integrity result at page startup. The chain remains
+            # protected because add_record() performs strict checks before writing.
+            if not verify_on_load:
+                return True
+
+            is_valid, integrity_message = self.verify_integrity()
+            if is_valid:
+                return True
+
+            # Backward compatibility for ledgers produced by the earlier JSON
+            # formatting. Migration occurs only in strict loading mode.
+            legacy_valid, _ = self._verify_legacy_integrity()
+            if legacy_valid:
+                self._migrate_legacy_chain()
+                migrated_valid, migrated_message = self.verify_integrity()
+                if not migrated_valid:
+                    raise ValueError(
+                        f"Legacy migration completed but verification failed: {migrated_message}"
+                    )
+                return True
+
+            raise ValueError(integrity_message)
 
         except Exception as error:
             raise RuntimeError(
                 f"Existing blockchain ledger could not be loaded safely: {error}"
             ) from error
+
+    @classmethod
+    def verify_saved_file(cls, chain_file=CHAIN_FILE, difficulty=DIFFICULTY):
+        """Verify the JSON ledger without creating, replacing, or repairing it.
+
+        Returns (is_valid, message, loaded_blockchain). The loaded blockchain is
+        returned only when the file could be parsed. This method is used by the
+        Streamlit verification button and by add_record() before every write.
+        """
+        try:
+            ledger = cls(
+                difficulty=difficulty,
+                chain_file=chain_file,
+                verify_on_load=False,
+                allow_invalid_load=False,
+                create_if_missing=False,
+            )
+        except Exception as error:
+            message = str(error).strip()
+            prefix = "Existing blockchain ledger could not be loaded safely:"
+            while message.lower().startswith(prefix.lower()):
+                message = message[len(prefix):].strip()
+            return False, message or error.__class__.__name__, None
+
+        is_valid, message = ledger.verify_integrity()
+        if is_valid:
+            return True, message, ledger
+
+        legacy_valid, _ = ledger._verify_legacy_integrity()
+        if legacy_valid:
+            return (
+                True,
+                "Legacy chain integrity verified — all blocks valid",
+                ledger,
+            )
+
+        return False, message, ledger
 
     def get_chain_as_dataframe(self):
         rows = []

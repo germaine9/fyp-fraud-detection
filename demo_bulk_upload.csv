@@ -6,7 +6,7 @@ P0202,C0000003,65,Male,I10,93000,235.15,189.11,Private,11/10/2023,22,70,General 
 P0135,C0000004,36,Male,M54.5,85025,487.96,369.91,Private,5/9/2023,21,67,Pulmonology,PA,Approved,0,5,Inpatient,0,4
 P0241,C0000005,44,Female,E11.9,80053,220.99,174.05,Medicaid,20/12/2024,26,74,Orthopedics,CA,Approved,0,2,Emergency,0,1
 P0196,C0000006,50,Male,E78.5,93000,458.6,372.31,Medicare,20/2/2022,2,84,Cardiology,OH,Approved,0,0,Outpatient,1,0
-P0071,C0000007,1,Male,I10,85025,934.34,321.6,,13/7/2022,6,114,,PA,Pending,1,2,Emergency,0,
+P0071,C0000007,1,Male,I10,85025,934.34,321.6,,13/7/2022,6,114,,PA,Pending,1,2,Emergency,0,5
 P0097,C0000008,34,Female,M54.5,97110,478.11,412.48,Medicare,25/5/2021,24,65,Pulmonology,IL,Pending,0,5,Inpatient,1,4
 P0125,C0000009,47,Male,K21.9,99213,426.16,335.8,Self-Pay,29/5/2022,5,56,Internal Medicine,TX,Approved,0,2,Emergency,0,4
 P0021,C0000010,48,Female,I10,93000,239.57,199.45,Medicare,17/12/2022,26,64,General Practice,FL,Approved,0,2,Emergency,0,0
