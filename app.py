@@ -1368,7 +1368,6 @@ if page == "Home":
 
     st.markdown(f"""
     <div class="hero-wrap">
-        <div class="hero-kicker">Final Year Project Prototype</div>
         <p class="hero-title">Healthcare Fraud Detection System</p>
         <p class="hero-subtitle">
         Review healthcare claims using the system's fixed AI fraud-screening model and store
